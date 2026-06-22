@@ -21,13 +21,13 @@ import java.time.Instant;
 public class ProductPriceEntity {
 
     @Id
-    @Column(name = "product_number", nullable = false, length = 100)
+    @Column(name = "product_number", nullable = false, length = 255)
     private String productNumber;
 
     @Column(length = 768)
     private String url;
 
-    @Column(name = "ean_number", length = 100)
+    @Column(name = "ean_number", length = 255)
     private String eanNumber;
 
     @Column(length = 500)
