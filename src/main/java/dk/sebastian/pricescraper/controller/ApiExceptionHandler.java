@@ -1,6 +1,6 @@
 package dk.sebastian.pricescraper.controller;
 
-import dk.sebastian.pricescraper.records.ApiErrorDto;
+import dk.sebastian.pricescraper.dto.ApiErrorDto;
 import dk.sebastian.pricescraper.service.ApiErrorService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

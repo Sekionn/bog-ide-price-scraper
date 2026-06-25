@@ -2,16 +2,18 @@ package dk.sebastian.pricescraper.service;
 
 import dk.sebastian.pricescraper.entity.ProductPriceEntity;
 import dk.sebastian.pricescraper.records.ProductPrice;
-import dk.sebastian.pricescraper.records.ProductPriceDto;
+import dk.sebastian.pricescraper.dto.ProductPriceDto;
 import dk.sebastian.pricescraper.repository.ProductPriceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class ProductPriceService {
@@ -31,15 +33,21 @@ public class ProductPriceService {
 
     @Transactional
     public ProductPriceDto save(ProductPrice productPrice) {
+        Instant lastRequestedAt = productPriceRepository.findById(productPrice.productNumber())
+                .map(ProductPriceEntity::getLastRequestedAt)
+                .orElse(null);
         ProductPriceEntity entity = new ProductPriceEntity(
                 productPrice.productNumber(),
                 productPrice.url(),
                 productPrice.eanNumber(),
                 productPrice.title(),
+                productPrice.author(),
                 productPrice.price(),
                 productPrice.currency(),
                 productPrice.availability(),
-                productPrice.scrapedAt()
+                productPrice.scrapedAt(),
+                0,
+                lastRequestedAt
         );
 
         ProductPriceDto savedProduct = toDto(productPriceRepository.save(entity));
@@ -49,11 +57,26 @@ public class ProductPriceService {
 
     @Transactional
     public void trackProduct(String productNumber, String eanNumber) {
+        trackProduct(productNumber, null, eanNumber);
+    }
+
+    @Transactional
+    public boolean trackProduct(String productNumber, String url, String eanNumber) {
         if (productPriceRepository.existsByProductNumber(productNumber)) {
+            return false;
+        }
+
+        productPriceRepository.save(new ProductPriceEntity(productNumber, url, eanNumber));
+        return true;
+    }
+
+    @Transactional
+    public void recordStaleRequests(Set<String> productNumbers, Instant requestedAt) {
+        if (productNumbers.isEmpty()) {
             return;
         }
 
-        productPriceRepository.save(new ProductPriceEntity(productNumber, eanNumber));
+        productPriceRepository.recordStaleRequests(productNumbers, requestedAt);
     }
 
     @Transactional(readOnly = true)
@@ -101,6 +124,7 @@ public class ProductPriceService {
                 entity.getProductNumber(),
                 entity.getEanNumber(),
                 entity.getTitle(),
+                entity.getAuthor(),
                 entity.getPrice()
         );
     }

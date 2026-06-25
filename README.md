@@ -28,6 +28,18 @@ spring.datasource.password=bogide
 
 Override them with `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`.
 
+Swagger UI is available after startup:
+
+```text
+http://localhost:8080/swagger-ui.html
+```
+
+The generated OpenAPI document is available at:
+
+```text
+http://localhost:8080/v3/api-docs
+```
+
 ## Docker
 
 Run the app and MySQL together:
@@ -96,6 +108,24 @@ Start a manual known-product refresh:
 curl -X POST http://localhost:8080/api/scrape/run
 ```
 
+Discover product numbers and URLs from product sitemaps, adding missing products as placeholder rows:
+
+```bash
+curl -X POST "http://localhost:8080/api/discovery/run?limit=10"
+```
+
+Use `limit=0` for no product-count limit. Discovery still stops after:
+
+```properties
+scraper.discovery-max-run-time=PT5H
+```
+
+Check discovery status:
+
+```bash
+curl http://localhost:8080/api/discovery/status
+```
+
 Check status:
 
 ```bash
@@ -127,6 +157,19 @@ scraper.max-products-per-run=10
 ```
 
 Do this before your first run if you already have known products in the database.
+
+For a small scheduled sitemap discovery test, set:
+
+```properties
+scraper.max-discovered-products-per-run=10
+```
+
+The default discovery schedule runs once per week:
+
+```properties
+scraper.discovery-cron=0 0 3 ? * MON
+scraper.discovery-zone=Europe/Copenhagen
+```
 
 ## Request pacing
 

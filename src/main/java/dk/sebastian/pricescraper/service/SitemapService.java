@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -104,6 +105,20 @@ public class SitemapService {
         } catch (Exception e) {
             throw new IllegalStateException("Could not parse sitemap XML", e);
         }
+    }
+
+    Optional<String> extractProductNumber(String productUrl) {
+        if (!isAllowedProductUrl(productUrl)) {
+            return Optional.empty();
+        }
+
+        int productNumberStart = productUrl.lastIndexOf('-');
+        if (productNumberStart < 0 || productNumberStart == productUrl.length() - 1) {
+            return Optional.empty();
+        }
+
+        String productNumber = productUrl.substring(productNumberStart + 1).trim();
+        return productNumber.isBlank() ? Optional.empty() : Optional.of(productNumber);
     }
 
     private static long limitOrMax(int configuredLimit) {

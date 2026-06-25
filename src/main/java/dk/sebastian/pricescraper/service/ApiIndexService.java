@@ -2,9 +2,10 @@ package dk.sebastian.pricescraper.service;
 
 import dk.sebastian.pricescraper.controller.ApiIndexController;
 import dk.sebastian.pricescraper.controller.ProductPriceController;
+import dk.sebastian.pricescraper.controller.ProductDiscoveryController;
 import dk.sebastian.pricescraper.controller.ScrapeController;
-import dk.sebastian.pricescraper.records.ApiIndexDto;
-import dk.sebastian.pricescraper.records.EndpointDescriptorDto;
+import dk.sebastian.pricescraper.dto.ApiIndexDto;
+import dk.sebastian.pricescraper.dto.EndpointDescriptorDto;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.Link;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,8 @@ public class ApiIndexService {
                 List.of(
                         latestPrices(),
                         batchPrices(),
+                        runDiscovery(),
+                        discoveryStatus(),
                         runScrape(),
                         scrapeStatus()
                 )
@@ -35,6 +38,8 @@ public class ApiIndexService {
                 linkTo(methodOn(ApiIndexController.class).index()).withSelfRel(),
                 linkTo(methodOn(ProductPriceController.class).latest()).withRel("latest-prices"),
                 Link.of("/api/prices/batch").withRel("batch-prices"),
+                Link.of("/api/discovery/run").withRel("run-product-discovery"),
+                linkTo(methodOn(ProductDiscoveryController.class).status()).withRel("product-discovery-status"),
                 linkTo(methodOn(ScrapeController.class).runNow()).withRel("run-refresh"),
                 linkTo(methodOn(ScrapeController.class).status()).withRel("refresh-status")
         );
@@ -86,6 +91,37 @@ public class ApiIndexService {
         );
     }
 
+    private EndpointDescriptorDto runDiscovery() {
+        return new EndpointDescriptorDto(
+                "run-product-discovery",
+                "POST",
+                "Starts a background product discovery job that scans product sitemaps and stores missing product numbers and URLs.",
+                null,
+                Map.of(
+                        "started", true,
+                        "message", "Product discovery started. Check /api/discovery/status for progress."
+                ),
+                Map.of(
+                        "query", "?limit=10",
+                        "limit", "Optional. Number of new products to add. 0 means no limit.",
+                        "maxRunTime", "Stops after scraper.discovery-max-run-time.",
+                        "conflictStatus", 409,
+                        "conflictReason", "Returned when product discovery is already running."
+                )
+        );
+    }
+
+    private EndpointDescriptorDto discoveryStatus() {
+        return new EndpointDescriptorDto(
+                "product-discovery-status",
+                "GET",
+                "Returns current product discovery status and the last discovery summary.",
+                null,
+                productDiscoveryStatusResponseExample(),
+                Map.of()
+        );
+    }
+
     private EndpointDescriptorDto scrapeStatus() {
         return new EndpointDescriptorDto(
                 "refresh-status",
@@ -104,6 +140,7 @@ public class ApiIndexService {
                 "productNumber", "2287895",
                 "eanNumber", "9788711477960",
                 "title", "Egholms Gud",
+                "author", "Johannes Buchholtz",
                 "price", "69.95"
         );
     }
@@ -122,6 +159,23 @@ public class ApiIndexService {
         response.put("lastError", null);
         response.put("lastFailedUrl", null);
         response.put("lastFailedStatusCode", null);
+        return response;
+    }
+
+    private Map<String, Object> productDiscoveryStatusResponseExample() {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("running", false);
+        response.put("lastSummary", Map.of(
+                "startedAt", "2026-06-23T01:00:00Z",
+                "finishedAt", "2026-06-23T01:20:00Z",
+                "discoveredProductCount", 10,
+                "alreadyKnownProductCount", 125,
+                "invalidUrlCount", 0,
+                "failedProductCount", 0,
+                "timeLimitReached", false
+        ));
+        response.put("lastError", null);
+        response.put("lastFailedUrl", null);
         return response;
     }
 }

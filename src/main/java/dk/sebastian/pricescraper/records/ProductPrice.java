@@ -8,6 +8,7 @@ public record ProductPrice(
         String productNumber,
         String eanNumber,
         String title,
+        String author,
         BigDecimal price,
         String currency,
         String availability,

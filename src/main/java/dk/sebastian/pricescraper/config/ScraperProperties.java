@@ -19,9 +19,13 @@ public class ScraperProperties {
     private Duration connectTimeout = Duration.ofSeconds(10);
     private Duration refreshAfter = Duration.ofDays(7);
     private Duration maxRunTime = Duration.ofHours(5);
+    private String discoveryCron = "0 0 3 ? * MON";
+    private String discoveryZone = "Europe/Copenhagen";
+    private Duration discoveryMaxRunTime = Duration.ofHours(5);
     private String cachePrefix = "product-price";
     private int maxSitemapsPerRun = 0;
     private int maxProductsPerRun = 0;
+    private int maxDiscoveredProductsPerRun = 0;
 
     public ScraperScheduleProperties getSchedule() {
         return schedule;
@@ -115,6 +119,30 @@ public class ScraperProperties {
         this.maxRunTime = maxRunTime;
     }
 
+    public String getDiscoveryCron() {
+        return discoveryCron;
+    }
+
+    public void setDiscoveryCron(String discoveryCron) {
+        this.discoveryCron = discoveryCron;
+    }
+
+    public String getDiscoveryZone() {
+        return discoveryZone;
+    }
+
+    public void setDiscoveryZone(String discoveryZone) {
+        this.discoveryZone = discoveryZone;
+    }
+
+    public Duration getDiscoveryMaxRunTime() {
+        return discoveryMaxRunTime;
+    }
+
+    public void setDiscoveryMaxRunTime(Duration discoveryMaxRunTime) {
+        this.discoveryMaxRunTime = discoveryMaxRunTime;
+    }
+
     public String getCachePrefix() {
         return cachePrefix;
     }
@@ -137,6 +165,14 @@ public class ScraperProperties {
 
     public void setMaxProductsPerRun(int maxProductsPerRun) {
         this.maxProductsPerRun = maxProductsPerRun;
+    }
+
+    public int getMaxDiscoveredProductsPerRun() {
+        return maxDiscoveredProductsPerRun;
+    }
+
+    public void setMaxDiscoveredProductsPerRun(int maxDiscoveredProductsPerRun) {
+        this.maxDiscoveredProductsPerRun = maxDiscoveredProductsPerRun;
     }
 
 }

@@ -1,7 +1,7 @@
 package dk.sebastian.pricescraper.service;
 
 import dk.sebastian.pricescraper.config.ScraperProperties;
-import dk.sebastian.pricescraper.records.ProductPriceDto;
+import dk.sebastian.pricescraper.dto.ProductPriceDto;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -54,11 +54,11 @@ public class ProductPriceCacheService {
     public void write(ProductPriceDto productPrice) {
         Duration ttl = properties.getRefreshAfter();
         try {
-            if (hasText(productPrice.productNumber())) {
-                redisTemplate.opsForValue().set(productNumberKey(productPrice.productNumber()), productPrice, ttl);
+            if (hasText(productPrice.getProductNumber())) {
+                redisTemplate.opsForValue().set(productNumberKey(productPrice.getProductNumber()), productPrice, ttl);
             }
-            if (hasText(productPrice.eanNumber())) {
-                redisTemplate.opsForValue().set(eanNumberKey(productPrice.eanNumber()), productPrice, ttl);
+            if (hasText(productPrice.getEanNumber())) {
+                redisTemplate.opsForValue().set(eanNumberKey(productPrice.getEanNumber()), productPrice, ttl);
             }
         } catch (RedisConnectionFailureException ignored) {
             // MySQL remains the source of truth if Redis is temporarily unavailable.
@@ -78,9 +78,9 @@ public class ProductPriceCacheService {
     ) {
         Map<String, ProductPriceDto> productsByIdentifier = new LinkedHashMap<>(cachedProductsByIdentifier);
         for (ProductPriceDto product : databaseProducts) {
-            productsByIdentifier.putIfAbsent(product.productNumber(), product);
-            if (hasText(product.eanNumber())) {
-                productsByIdentifier.putIfAbsent(product.eanNumber(), product);
+            productsByIdentifier.putIfAbsent(product.getProductNumber(), product);
+            if (hasText(product.getEanNumber())) {
+                productsByIdentifier.putIfAbsent(product.getEanNumber(), product);
             }
         }
 

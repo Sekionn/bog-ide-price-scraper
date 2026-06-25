@@ -1,6 +1,6 @@
 package dk.sebastian.pricescraper.service;
 
-import dk.sebastian.pricescraper.records.ApiErrorDto;
+import dk.sebastian.pricescraper.dto.ApiErrorDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;

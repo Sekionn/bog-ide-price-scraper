@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,6 +27,7 @@ public class ProductPageScraperService {
     private static final Pattern BARCODE_PATTERN = Pattern.compile("\"barcode\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern GTIN13_PATTERN = Pattern.compile("\"gtin13\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern ISBN_PATTERN = Pattern.compile("\"isbn\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern AUTHOR_PATTERN = Pattern.compile("\"author\"\\s*:\\s*\"([^\"]+)\"");
 
     private final HttpFetcherService httpFetcher;
     private final ObjectMapper objectMapper;
@@ -51,6 +54,7 @@ public class ProductPageScraperService {
                 identifiers.productNumber(),
                 identifiers.eanNumber(),
                 findTitle(document),
+                findAuthor(document, html).orElse(null),
                 priceDetails.price(),
                 priceDetails.currency(),
                 priceDetails.availability(),
@@ -91,6 +95,33 @@ public class ProductPageScraperService {
                 Optional<ProductIdentifiers> identifiers = findIdentifiersInJson(root);
                 if (identifiers.isPresent()) {
                     return identifiers;
+                }
+            } catch (Exception ignored) {
+                // Non-strict JSON-LD is handled by the regex fallback.
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<String> findAuthor(Document document, String html) {
+        return findAuthorInJsonLd(document)
+                .or(() -> findAuthorInMetaTags(document))
+                .or(() -> findAuthorWithRegex(html));
+    }
+
+    private Optional<String> findAuthorInJsonLd(Document document) {
+        for (Element script : document.select("script[type=application/ld+json]")) {
+            String json = script.data().isBlank() ? script.html() : script.data();
+            if (json.isBlank()) {
+                continue;
+            }
+
+            try {
+                JsonNode root = objectMapper.readTree(json);
+                Optional<String> author = findAuthorInJson(root);
+                if (author.isPresent()) {
+                    return author;
                 }
             } catch (Exception ignored) {
                 // Non-strict JSON-LD is handled by the regex fallback.
@@ -187,6 +218,43 @@ public class ProductPageScraperService {
         return Optional.empty();
     }
 
+    private Optional<String> findAuthorInJson(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return Optional.empty();
+        }
+
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                Optional<String> author = findAuthorInJson(child);
+                if (author.isPresent()) {
+                    return author;
+                }
+            }
+            return Optional.empty();
+        }
+
+        if (!node.isObject()) {
+            return Optional.empty();
+        }
+
+        if (node.has("author")) {
+            Optional<String> author = authorValue(node.get("author"));
+            if (author.isPresent()) {
+                return author;
+            }
+        }
+
+        Iterator<JsonNode> children = node.elements();
+        while (children.hasNext()) {
+            Optional<String> author = findAuthorInJson(children.next());
+            if (author.isPresent()) {
+                return author;
+            }
+        }
+
+        return Optional.empty();
+    }
+
     private Optional<PriceDetails> findPriceInMetaTags(Document document) {
         String priceValue = firstNonBlank(
                 attr(document, "meta[property=product:price:amount]", "content"),
@@ -226,6 +294,19 @@ public class ProductPageScraperService {
         return parsePrice(matcher.group(1)).map(price -> new PriceDetails(price, "DKK", ""));
     }
 
+    private Optional<String> findAuthorInMetaTags(Document document) {
+        return Optional.ofNullable(firstNonBlank(
+                attr(document, "meta[name=author]", "content"),
+                attr(document, "meta[property=book:author]", "content"),
+                attr(document, "[itemprop=author]", "content"),
+                text(document, "[itemprop=author]")
+        ));
+    }
+
+    private Optional<String> findAuthorWithRegex(String html) {
+        return Optional.ofNullable(firstRegexGroup(html, AUTHOR_PATTERN));
+    }
+
     private Optional<ProductIdentifiers> findIdentifiersWithRegex(String html) {
         String productNumber = firstRegexGroup(html, SKU_PATTERN);
         String eanNumber = firstNonBlank(
@@ -247,6 +328,33 @@ public class ProductPageScraperService {
                 text(document, "h1"),
                 document.title()
         );
+    }
+
+    private static Optional<String> authorValue(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return Optional.empty();
+        }
+
+        if (node.isTextual()) {
+            return Optional.ofNullable(firstNonBlank(node.asText()));
+        }
+
+        if (node.isArray()) {
+            List<String> authors = new ArrayList<>();
+            for (JsonNode child : node) {
+                authorValue(child).ifPresent(authors::add);
+            }
+            return authors.isEmpty() ? Optional.empty() : Optional.of(String.join(", ", authors));
+        }
+
+        if (node.isObject()) {
+            return Optional.ofNullable(firstNonBlank(
+                    textOrDefault(node.get("name"), ""),
+                    textOrDefault(node.get("@id"), "")
+            ));
+        }
+
+        return Optional.empty();
     }
 
     private static String attr(Document document, String selector, String attribute) {

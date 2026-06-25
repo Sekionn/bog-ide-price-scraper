@@ -3,7 +3,7 @@ package dk.sebastian.pricescraper.service;
 import dk.sebastian.pricescraper.config.ScraperProperties;
 import dk.sebastian.pricescraper.entity.ProductPriceEntity;
 import dk.sebastian.pricescraper.records.ProductPrice;
-import dk.sebastian.pricescraper.records.ProductPriceDto;
+import dk.sebastian.pricescraper.dto.ProductPriceDto;
 import dk.sebastian.pricescraper.records.RefreshResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +52,8 @@ public class ProductRefreshService {
 
         List<ProductPriceEntity> latestMatches = productPriceService.findLatestEntitiesByProductNumberOrEanNumber(List.copyOf(uncachedIdentifiers));
         Set<String> unknownIdentifiers = unknownIdentifiers(uncachedIdentifiers, latestMatches);
+        Set<String> staleRequestedProductNumbers = staleRequestedProductNumbers(latestMatches, now);
+        productPriceService.recordStaleRequests(staleRequestedProductNumbers, now);
 
         for (ProductPriceEntity latestMatch : latestMatches) {
             if (!productPriceService.isFresh(latestMatch, now, properties.getRefreshAfter())) {
@@ -64,6 +66,18 @@ public class ProductRefreshService {
         List<ProductPriceDto> databaseProducts = productPriceService.findLatestByProductNumberOrEanNumber(List.copyOf(uncachedIdentifiers));
         productPriceCacheService.writeAll(databaseProducts);
         return productPriceCacheService.orderForIdentifiers(normalizedIdentifiers, cachedProductsByIdentifier, databaseProducts);
+    }
+
+    private Set<String> staleRequestedProductNumbers(List<ProductPriceEntity> latestMatches, Instant now) {
+        Set<String> productNumbers = new LinkedHashSet<>();
+        for (ProductPriceEntity latestMatch : latestMatches) {
+            if (latestMatch.getScrapedAt() != null
+                    && !productPriceService.isFresh(latestMatch, now, properties.getRefreshAfter())) {
+                productNumbers.add(latestMatch.getProductNumber());
+            }
+        }
+
+        return productNumbers;
     }
 
     public RefreshResult refreshKnownProductsUntil(Instant deadline) {

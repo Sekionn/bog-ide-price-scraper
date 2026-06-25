@@ -1,7 +1,7 @@
 package dk.sebastian.pricescraper.service;
 
-import dk.sebastian.pricescraper.records.ScrapeRunResponseDto;
-import dk.sebastian.pricescraper.records.ScrapeStatusDto;
+import dk.sebastian.pricescraper.dto.ScrapeRunResponseDto;
+import dk.sebastian.pricescraper.dto.ScrapeStatusDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;

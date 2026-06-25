@@ -1,7 +1,7 @@
 package dk.sebastian.pricescraper.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dk.sebastian.pricescraper.records.ProductPriceDto;
+import dk.sebastian.pricescraper.dto.ProductPriceDto;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;

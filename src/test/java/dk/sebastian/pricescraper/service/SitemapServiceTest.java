@@ -96,4 +96,21 @@ class SitemapServiceTest {
                 Map.entry("2287895", "https://www.bog-ide.dk/products/egholms-gud-2287895")
         );
     }
+
+    @Test
+    void extractsProductNumberFromAllowedProductUrlSuffix() {
+        SitemapService sitemapService = new SitemapService(null, new ScraperProperties());
+
+        assertThat(sitemapService.extractProductNumber(
+                "https://www.bog-ide.dk/products/egholms-gud-johannes-buchholtz-ebog-2287895"
+        )).contains("2287895");
+    }
+
+    @Test
+    void doesNotExtractProductNumberFromNonProductUrl() {
+        SitemapService sitemapService = new SitemapService(null, new ScraperProperties());
+
+        assertThat(sitemapService.extractProductNumber("https://www.bog-ide.dk/pages/egholms-gud-2287895"))
+                .isEmpty();
+    }
 }
