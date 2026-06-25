@@ -54,8 +54,6 @@ services:
       SERVER_SSL_KEY_ALIAS: bog-ide-price-scraper
     ports:
       - "8443:8443"
-    volumes:
-      - ./certs/bog-ide-price-scraper.p12:/app/certs/bog-ide-price-scraper.p12:ro
 
 volumes:
   mysql-data:

@@ -51,7 +51,7 @@ app on https://localhost:8443
 
 ## HTTPS
 
-The Docker image supports HTTPS through a mounted PKCS12 keystore. Generate a keystore on the server, outside the Git repo or in a ignored `certs/` folder:
+The Docker image includes the PKCS12 keystore at `/app/certs/bog-ide-price-scraper.p12`. Generate or replace the keystore before building the image:
 
 ```powershell
 New-Item -ItemType Directory -Force -Path certs
@@ -73,7 +73,6 @@ docker run -d `
   --name bog-ide-price-scraper `
   --network bogide-net `
   -p 8443:8443 `
-  -v "${PWD}\certs\bog-ide-price-scraper.p12:/app/certs/bog-ide-price-scraper.p12:ro" `
   -e SERVER_PORT=8443 `
   -e SERVER_SSL_ENABLED=true `
   -e SERVER_SSL_KEY_STORE=/app/certs/bog-ide-price-scraper.p12 `
@@ -88,7 +87,7 @@ docker run -d `
   bog-ide-price-scraper:latest
 ```
 
-Do not commit keystores or certificate passwords. The repo ignores `certs/`, `*.p12`, `*.pfx`, and `*.jks`. The Docker image only exposes `8443`; when HTTPS is enabled with `SERVER_PORT=8443`, the app does not listen on HTTP port `8080`.
+The Docker image only exposes `8443`; when HTTPS is enabled with `SERVER_PORT=8443`, the app does not listen on HTTP port `8080`. Because the keystore is copied into the image, treat the image as containing private key material.
 
 The default schedule is Monday, Wednesday, and Friday at 22:00 in `Europe/Copenhagen`.
 

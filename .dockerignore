@@ -6,7 +6,3 @@ data/
 .idea/
 .vscode/
 *.iml
-certs/
-*.p12
-*.pfx
-*.jks
