@@ -355,3 +355,6 @@ data/
 .idea/
 *.iml
 .DS_Store
+certs/
+*.p12
+*.jks

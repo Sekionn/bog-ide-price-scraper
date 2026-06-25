@@ -8,12 +8,6 @@ Bog & ide's robots.txt mentions UCP/MCP for agent catalog operations. This proje
 
 ## Run
 
-```bash
-./mvnw spring-boot:run
-```
-
-On Windows:
-
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
@@ -44,7 +38,7 @@ http://localhost:8080/v3/api-docs
 
 Run the app and MySQL together:
 
-```bash
+```powershell
 docker compose up --build
 ```
 
@@ -52,8 +46,49 @@ This starts:
 
 ```text
 mysql:8.4 on localhost:3306
-app on localhost:8080
+app on https://localhost:8443
 ```
+
+## HTTPS
+
+The Docker image supports HTTPS through a mounted PKCS12 keystore. Generate a keystore on the server, outside the Git repo or in a ignored `certs/` folder:
+
+```powershell
+New-Item -ItemType Directory -Force -Path certs
+keytool -genkeypair `
+  -alias bog-ide-price-scraper `
+  -keyalg RSA `
+  -keysize 2048 `
+  -storetype PKCS12 `
+  -keystore certs\bog-ide-price-scraper.p12 `
+  -validity 365 `
+  -storepass change-this-password `
+  -dname "CN=your-domain.example, OU=Private, O=Private, L=Copenhagen, ST=Denmark, C=DK"
+```
+
+Run the app with HTTPS enabled:
+
+```powershell
+docker run -d `
+  --name bog-ide-price-scraper `
+  --network bogide-net `
+  -p 8443:8443 `
+  -v "${PWD}\certs\bog-ide-price-scraper.p12:/app/certs/bog-ide-price-scraper.p12:ro" `
+  -e SERVER_PORT=8443 `
+  -e SERVER_SSL_ENABLED=true `
+  -e SERVER_SSL_KEY_STORE=/app/certs/bog-ide-price-scraper.p12 `
+  -e SERVER_SSL_KEY_STORE_PASSWORD=change-this-password `
+  -e SERVER_SSL_KEY_STORE_TYPE=PKCS12 `
+  -e SERVER_SSL_KEY_ALIAS=bog-ide-price-scraper `
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://bog-ide-price-mysql:3306/bog_ide_prices `
+  -e SPRING_DATASOURCE_USERNAME=bogide `
+  -e SPRING_DATASOURCE_PASSWORD=bogide `
+  -e SPRING_DATA_REDIS_HOST=bog-ide-price-redis `
+  -e SPRING_DATA_REDIS_PORT=6379 `
+  bog-ide-price-scraper:latest
+```
+
+Do not commit keystores or certificate passwords. The repo ignores `certs/`, `*.p12`, `*.pfx`, and `*.jks`. The Docker image only exposes `8443`; when HTTPS is enabled with `SERVER_PORT=8443`, the app does not listen on HTTP port `8080`.
 
 The default schedule is Monday, Wednesday, and Friday at 22:00 in `Europe/Copenhagen`.
 
@@ -96,22 +131,22 @@ scraper.refresh-after=P7D
 
 Start the app, then call:
 
-```bash
-curl http://localhost:8080/api
+```powershell
+curl.exe http://localhost:8080/api
 ```
 
 This returns the HATEOAS API index with links, methods, request examples, response examples, and endpoint constraints.
 
 Start a manual known-product refresh:
 
-```bash
-curl -X POST http://localhost:8080/api/scrape/run
+```powershell
+curl.exe -X POST http://localhost:8080/api/scrape/run
 ```
 
 Discover product numbers and URLs from product sitemaps, adding missing products as placeholder rows:
 
-```bash
-curl -X POST "http://localhost:8080/api/discovery/run?limit=10"
+```powershell
+curl.exe -X POST "http://localhost:8080/api/discovery/run?limit=10"
 ```
 
 Use `limit=0` for no product-count limit. Discovery still stops after:
@@ -122,27 +157,27 @@ scraper.discovery-max-run-time=PT5H
 
 Check discovery status:
 
-```bash
-curl http://localhost:8080/api/discovery/status
+```powershell
+curl.exe http://localhost:8080/api/discovery/status
 ```
 
 Check status:
 
-```bash
-curl http://localhost:8080/api/scrape/status
+```powershell
+curl.exe http://localhost:8080/api/scrape/status
 ```
 
 Read the latest stored database rows:
 
-```bash
-curl http://localhost:8080/api/prices/latest
+```powershell
+curl.exe http://localhost:8080/api/prices/latest
 ```
 
 Look up the latest stored rows by `Varenr.` or EAN number, up to 100 identifiers per request:
 
-```bash
-curl -X POST http://localhost:8080/api/prices/batch \
-  -H "Content-Type: application/json" \
+```powershell
+curl.exe -X POST http://localhost:8080/api/prices/batch `
+  -H "Content-Type: application/json" `
   -d '["2287895", "9788711477960"]'
 ```
 

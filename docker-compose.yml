@@ -46,8 +46,16 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SERVER_PORT: 8443
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_KEY_STORE: /app/certs/bog-ide-price-scraper.p12
+      SERVER_SSL_KEY_STORE_PASSWORD: change-this-password
+      SERVER_SSL_KEY_STORE_TYPE: PKCS12
+      SERVER_SSL_KEY_ALIAS: bog-ide-price-scraper
     ports:
-      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - ./certs/bog-ide-price-scraper.p12:/app/certs/bog-ide-price-scraper.p12:ro
 
 volumes:
   mysql-data:

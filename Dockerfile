@@ -12,8 +12,11 @@ RUN chmod +x mvnw && ./mvnw -DskipTests package
 FROM eclipse-temurin:17-jre
 
 WORKDIR /app
+RUN mkdir -p /app/certs
 COPY --from=build /workspace/target/bog-ide-price-scraper-0.0.1-SNAPSHOT.jar app.jar
 
-EXPOSE 8080
+EXPOSE 8443
+
+VOLUME ["/app/certs"]
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
