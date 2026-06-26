@@ -55,12 +55,6 @@ public class ProductRefreshService {
         Set<String> staleRequestedProductNumbers = staleRequestedProductNumbers(latestMatches, now);
         productPriceService.recordStaleRequests(staleRequestedProductNumbers, now);
 
-        for (ProductPriceEntity latestMatch : latestMatches) {
-            if (!productPriceService.isFresh(latestMatch, now, properties.getRefreshAfter())) {
-                refresh(latestMatch);
-            }
-        }
-
         refreshUnknownProductNumbers(unknownIdentifiers);
 
         List<ProductPriceDto> databaseProducts = productPriceService.findLatestByProductNumberOrEanNumber(List.copyOf(uncachedIdentifiers));
@@ -71,8 +65,9 @@ public class ProductRefreshService {
     private Set<String> staleRequestedProductNumbers(List<ProductPriceEntity> latestMatches, Instant now) {
         Set<String> productNumbers = new LinkedHashSet<>();
         for (ProductPriceEntity latestMatch : latestMatches) {
-            if (latestMatch.getScrapedAt() != null
-                    && !productPriceService.isFresh(latestMatch, now, properties.getRefreshAfter())) {
+            if (!latestMatch.hasScrapedPrice()
+                    || (latestMatch.getScrapedAt() != null
+                    && !productPriceService.isFresh(latestMatch, now, properties.getRefreshAfter()))) {
                 productNumbers.add(latestMatch.getProductNumber());
             }
         }

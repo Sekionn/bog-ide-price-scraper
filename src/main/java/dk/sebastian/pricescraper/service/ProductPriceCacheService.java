@@ -32,11 +32,12 @@ public class ProductPriceCacheService {
     public Optional<ProductPriceDto> findByIdentifier(String identifier) {
         try {
             ProductPriceDto product = redisTemplate.opsForValue().get(productNumberKey(identifier));
-            if (product != null) {
+            if (hasPrice(product)) {
                 return Optional.of(product);
             }
 
-            return Optional.ofNullable(redisTemplate.opsForValue().get(eanNumberKey(identifier)));
+            return Optional.ofNullable(redisTemplate.opsForValue().get(eanNumberKey(identifier)))
+                    .filter(ProductPriceCacheService::hasPrice);
         } catch (RedisConnectionFailureException e) {
             return Optional.empty();
         }
@@ -52,6 +53,10 @@ public class ProductPriceCacheService {
     }
 
     public void write(ProductPriceDto productPrice) {
+        if (!hasPrice(productPrice)) {
+            return;
+        }
+
         Duration ttl = properties.getRefreshAfter();
         try {
             if (hasText(productPrice.getProductNumber())) {
@@ -86,7 +91,7 @@ public class ProductPriceCacheService {
 
         return identifiers.stream()
                 .map(productsByIdentifier::get)
-                .filter(product -> product != null)
+                .filter(ProductPriceCacheService::hasPrice)
                 .distinct()
                 .toList();
     }
@@ -105,5 +110,9 @@ public class ProductPriceCacheService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static boolean hasPrice(ProductPriceDto product) {
+        return product != null && product.getPrice() != null;
     }
 }
