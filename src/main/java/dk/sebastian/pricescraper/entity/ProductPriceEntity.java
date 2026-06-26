@@ -38,6 +38,12 @@ public class ProductPriceEntity {
     @Column(length = 500)
     private String author;
 
+    @Column(name = "product_type", length = 50)
+    private String productType;
+
+    @Column(name = "book_type", length = 50)
+    private String bookType;
+
     @Column(precision = 12, scale = 2)
     private BigDecimal price;
 
@@ -110,6 +116,28 @@ public class ProductPriceEntity {
         this.eanNumber = eanNumber;
     }
 
+    public ProductPriceEntity(String productNumber, String url, String eanNumber, String title) {
+        this(productNumber, url, eanNumber, title, null, null, null);
+    }
+
+    public ProductPriceEntity(
+            String productNumber,
+            String url,
+            String eanNumber,
+            String title,
+            String author,
+            String productType,
+            String bookType
+    ) {
+        this.productNumber = productNumber;
+        this.url = url;
+        this.eanNumber = eanNumber;
+        this.title = title;
+        this.author = author;
+        this.productType = productType;
+        this.bookType = bookType;
+    }
+
     public String getId() {
         return productNumber;
     }
@@ -132,6 +160,14 @@ public class ProductPriceEntity {
 
     public String getAuthor() {
         return author;
+    }
+
+    public String getProductType() {
+        return productType;
+    }
+
+    public String getBookType() {
+        return bookType;
     }
 
     public BigDecimal getPrice() {

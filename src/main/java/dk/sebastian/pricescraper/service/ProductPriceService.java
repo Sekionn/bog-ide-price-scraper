@@ -62,11 +62,29 @@ public class ProductPriceService {
 
     @Transactional
     public boolean trackProduct(String productNumber, String url, String eanNumber) {
+        return trackProduct(productNumber, url, eanNumber, null);
+    }
+
+    @Transactional
+    public boolean trackProduct(String productNumber, String url, String eanNumber, String title) {
+        return trackProduct(productNumber, url, eanNumber, title, null, null, null);
+    }
+
+    @Transactional
+    public boolean trackProduct(
+            String productNumber,
+            String url,
+            String eanNumber,
+            String title,
+            String author,
+            String productType,
+            String bookType
+    ) {
         if (productPriceRepository.existsByProductNumber(productNumber)) {
             return false;
         }
 
-        productPriceRepository.save(new ProductPriceEntity(productNumber, url, eanNumber));
+        productPriceRepository.save(new ProductPriceEntity(productNumber, url, eanNumber, title, author, productType, bookType));
         return true;
     }
 

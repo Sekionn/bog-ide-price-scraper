@@ -2,6 +2,7 @@ package dk.sebastian.pricescraper.service;
 
 import dk.sebastian.pricescraper.config.ScraperProperties;
 import dk.sebastian.pricescraper.dto.ProductPriceDto;
+import dk.sebastian.pricescraper.dto.ProductPriceLookupRequestDto;
 import dk.sebastian.pricescraper.entity.ProductPriceEntity;
 import dk.sebastian.pricescraper.records.ProductPrice;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductRefreshServiceTest {
 
@@ -44,6 +46,7 @@ class ProductRefreshServiceTest {
                 productPriceCacheService,
                 productPageScraper,
                 sitemapService,
+                new TestProductLookupFailureService(),
                 properties
         );
 
@@ -94,6 +97,7 @@ class ProductRefreshServiceTest {
                 productPriceCacheService,
                 productPageScraper,
                 sitemapService,
+                new TestProductLookupFailureService(),
                 properties
         );
 
@@ -145,13 +149,212 @@ class ProductRefreshServiceTest {
         assertThat(result).containsExactly(pricedProduct);
     }
 
+    @Test
+    void tracksUnknownProductWithRequestNameWithoutScrapingDuringRequestLookup() {
+        ScraperProperties properties = new ScraperProperties();
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
+        TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
+        TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
+        TestSitemapService sitemapService = new TestSitemapService();
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                productPriceService,
+                productPriceCacheService,
+                productPageScraper,
+                sitemapService,
+                new TestProductLookupFailureService(),
+                properties
+        );
+
+        List<ProductPriceDto> result = productRefreshService.findFreshByProductNumberOrEanNumberRequests(List.of(
+                new ProductPriceLookupRequestDto("000607", "Some Product", "VARE")
+        ));
+
+        assertThat(result).isEmpty();
+        assertThat(productPriceService.trackedTitlesByProductNumber).containsExactly(
+                Map.entry("000607", "Some Product")
+        );
+        assertThat(productPriceService.trackedAuthorsByProductNumber).containsEntry("000607", null);
+        assertThat(productPriceService.trackedProductTypesByProductNumber).containsExactly(Map.entry("000607", "VARE"));
+        assertThat(productPriceService.trackedBookTypesByProductNumber).containsEntry("000607", null);
+        assertThat(sitemapService.discoveryRequests).isEmpty();
+        assertThat(productPageScraper.scrapedUrls).isEmpty();
+    }
+
+    @Test
+    void tracksUnknownProductWithoutLookupFailureDuringRequestLookup() {
+        ScraperProperties properties = new ScraperProperties();
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
+        TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
+        TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
+        TestSitemapService sitemapService = new TestSitemapService();
+        TestProductLookupFailureService productLookupFailureService = new TestProductLookupFailureService();
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                productPriceService,
+                productPriceCacheService,
+                productPageScraper,
+                sitemapService,
+                productLookupFailureService,
+                properties
+        );
+
+        List<ProductPriceDto> result = productRefreshService.findFreshByProductNumberOrEanNumberRequests(List.of(
+                new ProductPriceLookupRequestDto("000607", null, "VARE")
+        ));
+
+        assertThat(result).isEmpty();
+        assertThat(productPageScraper.scrapedUrls).isEmpty();
+        assertThat(sitemapService.discoveryRequests).isEmpty();
+        assertThat(productLookupFailureService.recordedProductNumbers).isEmpty();
+    }
+
+    @Test
+    void rejectsLookupRequestsWithUnknownProductType() {
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                new TestProductPriceService(new ScraperProperties()),
+                new TestProductPriceCacheService(new ScraperProperties()),
+                new TestProductPageScraperService(),
+                new TestSitemapService(),
+                new TestProductLookupFailureService(),
+                new ScraperProperties()
+        );
+
+        assertThatThrownBy(() -> productRefreshService.findFreshByProductNumberOrEanNumberRequests(List.of(
+                new ProductPriceLookupRequestDto("000607", "Some Product", "books")
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("productType must be either VARE or BOG");
+    }
+
+    @Test
+    void buildsBookFallbackUrlsForAllKnownBookTypes() {
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                new TestProductPriceService(new ScraperProperties()),
+                new TestProductPriceCacheService(new ScraperProperties()),
+                new TestProductPageScraperService(),
+                new TestSitemapService(),
+                new TestProductLookupFailureService(),
+                new ScraperProperties()
+        );
+
+        List<String> fallbackUrls = productRefreshService.fallbackProductUrls(
+                new ProductRefreshService.LookupMetadata("Some Book", "Some Author", "BOG"),
+                "123456"
+        );
+
+        assertThat(fallbackUrls).containsExactly(
+                "https://www.bog-ide.dk/products/some-book-some-author-indbundet-123456",
+                "https://www.bog-ide.dk/products/some-book-some-author-haeftet-123456",
+                "https://www.bog-ide.dk/products/some-book-some-author-hardback-123456",
+                "https://www.bog-ide.dk/products/some-book-some-author-paperback-123456"
+        );
+    }
+
+    @Test
+    void usesStoredAuthorWhenTryingBookFallbackUrls() {
+        ScraperProperties properties = new ScraperProperties();
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
+        TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
+        TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
+        productPageScraper.failingUrls = Set.of(
+                "https://www.bog-ide.dk/products/some-book-some-author-indbundet-123456",
+                "https://www.bog-ide.dk/products/some-book-some-author-haeftet-123456"
+        );
+        productPriceService.latestKnownEntities = List.of(new ProductPriceEntity(
+                "123456",
+                null,
+                null,
+                "Some Book",
+                "Some Author",
+                "BOG",
+                null
+        ));
+        TestSitemapService sitemapService = new TestSitemapService();
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                productPriceService,
+                productPriceCacheService,
+                productPageScraper,
+                sitemapService,
+                new TestProductLookupFailureService(),
+                properties
+        );
+
+        productRefreshService.refreshKnownProductsUntil(Instant.now().plusSeconds(60));
+
+        assertThat(productPageScraper.scrapedUrls).containsExactly(
+                "https://www.bog-ide.dk/products/some-book-some-author-indbundet-123456",
+                "https://www.bog-ide.dk/products/some-book-some-author-haeftet-123456",
+                "https://www.bog-ide.dk/products/some-book-some-author-hardback-123456"
+        );
+        assertThat(productPriceService.savedProducts).hasSize(1);
+    }
+
+    @Test
+    void recordsLookupFailureWhenBookAuthorIsMissingFromStoredData() {
+        ScraperProperties properties = new ScraperProperties();
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
+        TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
+        TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
+        TestProductLookupFailureService productLookupFailureService = new TestProductLookupFailureService();
+        productPriceService.latestKnownEntities = List.of(new ProductPriceEntity(
+                "123456",
+                null,
+                null,
+                "Some Book",
+                null,
+                "BOG",
+                null
+        ));
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                productPriceService,
+                productPriceCacheService,
+                productPageScraper,
+                new TestSitemapService(),
+                productLookupFailureService,
+                properties
+        );
+
+        productRefreshService.refreshKnownProductsUntil(Instant.now().plusSeconds(60));
+
+        assertThat(productPageScraper.scrapedUrls).isEmpty();
+        assertThat(productLookupFailureService.recordedProductNumbers).containsExactly("123456");
+        assertThat(productLookupFailureService.recordedAttemptedUrls).containsExactly((String) null);
+        assertThat(productLookupFailureService.recordedReasons)
+                .containsExactly("Could not build book fallback URL because product author is missing");
+    }
+
+    @Test
+    void fallbackProductUrlIsOnlyBuiltWhenRequiredFieldsExist() {
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                new TestProductPriceService(new ScraperProperties()),
+                new TestProductPriceCacheService(new ScraperProperties()),
+                new TestProductPageScraperService(),
+                new TestSitemapService(),
+                new TestProductLookupFailureService(),
+                new ScraperProperties()
+        );
+
+        assertThat(productRefreshService.fallbackProductUrl((String) null, "000607")).isNull();
+        assertThat(productRefreshService.fallbackProductUrl("  ", "000607")).isNull();
+        assertThat(productRefreshService.fallbackProductUrl("Some Product", "000607"))
+                .isEqualTo("https://www.bog-ide.dk/products/some-product-000607");
+        assertThat(productRefreshService.fallbackProductUrl(
+                new ProductRefreshService.LookupMetadata("Some Book", null, "BOG"),
+                "123456"
+        )).isNull();
+    }
+
     private static class TestProductPriceService extends ProductPriceService {
 
         private final ScraperProperties properties;
         private List<ProductPriceEntity> latestEntities = List.of();
+        private List<ProductPriceEntity> latestKnownEntities = List.of();
         private List<ProductPriceDto> latestDtos = List.of();
         private Set<String> recordedStaleRequests = Set.of();
         private List<ProductPrice> savedProducts = List.of();
+        private Map<String, String> trackedTitlesByProductNumber = Map.of();
+        private Map<String, String> trackedAuthorsByProductNumber = Map.of();
+        private Map<String, String> trackedProductTypesByProductNumber = Map.of();
+        private Map<String, String> trackedBookTypesByProductNumber = Map.of();
 
         TestProductPriceService(ScraperProperties properties) {
             super(null, null);
@@ -175,13 +378,39 @@ class ProductRefreshServiceTest {
 
         @Override
         public boolean isFresh(ProductPriceEntity entity, Instant now, java.time.Duration refreshAfter) {
+            if (entity.getScrapedAt() == null) {
+                return false;
+            }
+
             return entity.getScrapedAt().plus(properties.getRefreshAfter()).isAfter(now);
+        }
+
+        @Override
+        public List<ProductPriceEntity> findLatestKnownProductsOldestFirst() {
+            return latestKnownEntities;
         }
 
         @Override
         public ProductPriceDto save(ProductPrice productPrice) {
             savedProducts = List.of(productPrice);
             return null;
+        }
+
+        @Override
+        public boolean trackProduct(
+                String productNumber,
+                String url,
+                String eanNumber,
+                String title,
+                String author,
+                String productType,
+                String bookType
+        ) {
+            trackedTitlesByProductNumber = java.util.Collections.singletonMap(productNumber, title);
+            trackedAuthorsByProductNumber = java.util.Collections.singletonMap(productNumber, author);
+            trackedProductTypesByProductNumber = java.util.Collections.singletonMap(productNumber, productType);
+            trackedBookTypesByProductNumber = java.util.Collections.singletonMap(productNumber, bookType);
+            return true;
         }
 
         @Override
@@ -230,6 +459,7 @@ class ProductRefreshServiceTest {
     private static class TestProductPageScraperService extends ProductPageScraperService {
 
         private List<String> scrapedUrls = List.of();
+        private Set<String> failingUrls = Set.of();
 
         TestProductPageScraperService() {
             super(null, null);
@@ -237,8 +467,24 @@ class ProductRefreshServiceTest {
 
         @Override
         public ProductPrice scrape(String productUrl) {
-            scrapedUrls = List.of(productUrl);
-            return null;
+            java.util.ArrayList<String> urls = new java.util.ArrayList<>(scrapedUrls);
+            urls.add(productUrl);
+            scrapedUrls = List.copyOf(urls);
+            if (failingUrls.contains(productUrl)) {
+                throw new IllegalStateException("Unexpected HTTP 404 while fetching fallback URL");
+            }
+
+            return new ProductPrice(
+                    productUrl,
+                    "000607",
+                    null,
+                    "Some Product",
+                    null,
+                    BigDecimal.TEN,
+                    "DKK",
+                    "InStock",
+                    Instant.EPOCH
+            );
         }
     }
 
@@ -254,6 +500,24 @@ class ProductRefreshServiceTest {
         public Map<String, String> findProductUrlsByProductNumbers(java.util.Collection<String> productNumbers) {
             discoveryRequests = new LinkedHashSet<>(productNumbers);
             return Map.of();
+        }
+    }
+
+    private static class TestProductLookupFailureService extends ProductLookupFailureService {
+
+        private List<String> recordedProductNumbers = List.of();
+        private List<String> recordedAttemptedUrls = List.of();
+        private List<String> recordedReasons = List.of();
+
+        TestProductLookupFailureService() {
+            super(null, null);
+        }
+
+        @Override
+        public void recordFailure(String productNumber, String attemptedUrl, String failureReason) {
+            recordedProductNumbers = List.of(productNumber);
+            recordedAttemptedUrls = java.util.Collections.singletonList(attemptedUrl);
+            recordedReasons = List.of(failureReason);
         }
     }
 }

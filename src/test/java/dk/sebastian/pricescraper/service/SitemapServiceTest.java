@@ -3,6 +3,7 @@ package dk.sebastian.pricescraper.service;
 import dk.sebastian.pricescraper.config.ScraperProperties;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -98,6 +99,74 @@ class SitemapServiceTest {
     }
 
     @Test
+    void binaryScansProductSitemapsUsingActualProductNumberBounds() {
+        ScraperProperties properties = new ScraperProperties();
+        String sitemap1 = "https://www.bog-ide.dk/sitemap_products_1.xml?from=1&to=2";
+        String sitemap2 = "https://www.bog-ide.dk/sitemap_products_2.xml?from=3&to=4";
+        String sitemap3 = "https://www.bog-ide.dk/sitemap_products_3.xml?from=5&to=6";
+        String sitemap4 = "https://www.bog-ide.dk/sitemap_products_4.xml?from=7&to=8";
+        String sitemap5 = "https://www.bog-ide.dk/sitemap_products_5.xml?from=9&to=10";
+        RecordingHttpFetcher httpFetcher = new RecordingHttpFetcher(properties, Map.of(
+                properties.getSitemapIndexUrl(), """
+                        <sitemapindex>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_1.xml?from=1&amp;to=2</loc></sitemap>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_2.xml?from=3&amp;to=4</loc></sitemap>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_3.xml?from=5&amp;to=6</loc></sitemap>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_4.xml?from=7&amp;to=8</loc></sitemap>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_5.xml?from=9&amp;to=10</loc></sitemap>
+                        </sitemapindex>
+                        """,
+                sitemap1, productSitemapXml("book-a-100", "book-b-199"),
+                sitemap2, productSitemapXml("book-c-200", "book-d-299"),
+                sitemap3, productSitemapXml("book-e-300", "book-f-399"),
+                sitemap4, productSitemapXml("book-g-400", "book-h-450"),
+                sitemap5, productSitemapXml("book-i-500", "book-j-599")
+        ));
+        SitemapService sitemapService = new SitemapService(httpFetcher, properties);
+
+        Map<String, String> foundUrls = sitemapService.findProductUrlsByProductNumbers(List.of("450"));
+
+        assertThat(foundUrls).containsExactly(
+                Map.entry("450", "https://www.bog-ide.dk/products/book-h-450")
+        );
+        assertThat(httpFetcher.fetchedUrls).containsExactly(
+                properties.getSitemapIndexUrl(),
+                sitemap3,
+                sitemap4
+        );
+    }
+
+    @Test
+    void stopsAfterBinaryScanWhenProductNumberBoundsDoNotFindTheProduct() {
+        ScraperProperties properties = new ScraperProperties();
+        String sitemap1 = "https://www.bog-ide.dk/sitemap_products_1.xml?from=1&to=2";
+        String sitemap2 = "https://www.bog-ide.dk/sitemap_products_2.xml?from=3&to=4";
+        String sitemap3 = "https://www.bog-ide.dk/sitemap_products_3.xml?from=5&to=6";
+        RecordingHttpFetcher httpFetcher = new RecordingHttpFetcher(properties, Map.of(
+                properties.getSitemapIndexUrl(), """
+                        <sitemapindex>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_1.xml?from=1&amp;to=2</loc></sitemap>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_2.xml?from=3&amp;to=4</loc></sitemap>
+                            <sitemap><loc>https://www.bog-ide.dk/sitemap_products_3.xml?from=5&amp;to=6</loc></sitemap>
+                        </sitemapindex>
+                        """,
+                sitemap1, productSitemapXml("book-a-100", "book-b-199"),
+                sitemap2, productSitemapXml("book-c-200", "book-d-299"),
+                sitemap3, productSitemapXml("book-out-of-order-50", "book-z-60")
+        ));
+        SitemapService sitemapService = new SitemapService(httpFetcher, properties);
+
+        Map<String, String> foundUrls = sitemapService.findProductUrlsByProductNumbers(List.of("50"));
+
+        assertThat(foundUrls).isEmpty();
+        assertThat(httpFetcher.fetchedUrls).containsExactly(
+                properties.getSitemapIndexUrl(),
+                sitemap2,
+                sitemap1
+        );
+    }
+
+    @Test
     void extractsProductNumberFromAllowedProductUrlSuffix() {
         SitemapService sitemapService = new SitemapService(null, new ScraperProperties());
 
@@ -112,5 +181,35 @@ class SitemapServiceTest {
 
         assertThat(sitemapService.extractProductNumber("https://www.bog-ide.dk/pages/egholms-gud-2287895"))
                 .isEmpty();
+    }
+
+    private static String productSitemapXml(String firstProductPath, String secondProductPath) {
+        return """
+                <urlset>
+                    <url><loc>https://www.bog-ide.dk/products/%s</loc></url>
+                    <url><loc>https://www.bog-ide.dk/products/%s</loc></url>
+                </urlset>
+                """.formatted(firstProductPath, secondProductPath);
+    }
+
+    private static class RecordingHttpFetcher extends HttpFetcherService {
+
+        private final Map<String, String> responses;
+        private final List<String> fetchedUrls = new ArrayList<>();
+
+        RecordingHttpFetcher(ScraperProperties properties, Map<String, String> responses) {
+            super(properties);
+            this.responses = responses;
+        }
+
+        @Override
+        public String fetch(String url) {
+            fetchedUrls.add(url);
+            String response = responses.get(url);
+            if (response == null) {
+                throw new IllegalArgumentException("No fake response for " + url);
+            }
+            return response;
+        }
     }
 }

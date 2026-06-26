@@ -27,6 +27,7 @@ public class ApiIndexService {
                 List.of(
                         latestPrices(),
                         batchPrices(),
+                        lookupFailures(),
                         runDiscovery(),
                         discoveryStatus(),
                         runScrape(),
@@ -38,6 +39,7 @@ public class ApiIndexService {
                 linkTo(methodOn(ApiIndexController.class).index()).withSelfRel(),
                 linkTo(methodOn(ProductPriceController.class).latest()).withRel("latest-prices"),
                 Link.of("/api/prices/batch").withRel("batch-prices"),
+                linkTo(methodOn(ProductPriceController.class).lookupFailures()).withRel("lookup-failures"),
                 Link.of("/api/discovery/run").withRel("run-product-discovery"),
                 linkTo(methodOn(ProductDiscoveryController.class).status()).withRel("product-discovery-status"),
                 linkTo(methodOn(ScrapeController.class).runNow()).withRel("run-refresh"),
@@ -60,17 +62,41 @@ public class ApiIndexService {
         return new EndpointDescriptorDto(
                 "batch-prices",
                 "POST",
-                "Looks up products by Varenr. or EAN. Unknown Varenr. values may be discovered through product sitemaps; EAN values are never used for sitemap URL discovery.",
-                List.of("2287895", "9788711477960"),
+                "Looks up products by Varenr. or EAN. Unknown Varenr. values are tracked for a later refresh job.",
+                List.of(Map.of(
+                        "identifier", "2287895",
+                        "name", "Egholms Gud",
+                        "productType", "BOG"
+                )),
                 List.of(productPriceResponseExample()),
                 Map.of(
                         "contentType", "application/json",
                         "maxItems", 100,
-                        "itemType", "string",
+                        "itemType", "object",
                         "emptyItems", "ignored after trimming",
-                        "freshness", "Matched products older than scraper.refresh-after are refreshed before returning.",
-                        "placeholderRows", "Tracked products that have not been scraped yet are returned with null price fields."
+                        "freshness", "Matched products older than scraper.refresh-after are prioritized for a later refresh.",
+                        "placeholderRows", "Tracked products without a price are not returned.",
+                        "unknownProducts", "Unknown product numbers are stored as placeholder rows and are not scraped during the request.",
+                        "lookupFailures", "Products that cannot be found after all lookup strategies are listed at /api/prices/lookup-failures.",
+                        "productType", "Must be either VARE or BOG. Only BOG uses book fallback URL variants."
                 )
+        );
+    }
+
+    private EndpointDescriptorDto lookupFailures() {
+        return new EndpointDescriptorDto(
+                "lookup-failures",
+                "GET",
+                "Returns tracked products that could not be found after all lookup strategies, including attempt counts.",
+                null,
+                List.of(Map.of(
+                        "productNumber", "000607",
+                        "title", "Some Product",
+                        "attemptCount", 2,
+                        "lastAttemptedUrl", "https://www.bog-ide.dk/products/some-product-000607",
+                        "lastFailureReason", "Unexpected HTTP 404 while fetching fallback URL"
+                )),
+                Map.of()
         );
     }
 

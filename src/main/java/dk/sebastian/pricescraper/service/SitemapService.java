@@ -53,6 +53,108 @@ public class SitemapService {
             throw new IllegalArgumentException("Refusing non-product sitemap URL " + productSitemapUrl);
         }
 
+        return productUrlsInSitemap(productSitemapUrl);
+    }
+
+    public Map<String, String> findProductUrlsByProductNumbers(Collection<String> productNumbers) {
+        Set<String> remainingProductNumbers = new LinkedHashSet<>(productNumbers);
+        Map<String, String> foundUrlsByProductNumber = new LinkedHashMap<>();
+        List<String> productSitemapUrls = findProductSitemapUrls();
+        Set<Integer> scannedSitemapIndexes = new LinkedHashSet<>();
+
+        for (String productNumber : productNumbers) {
+            if (!remainingProductNumbers.contains(productNumber) || !isLongValue(productNumber)) {
+                continue;
+            }
+
+            binaryScanForProductNumber(
+                    productNumber,
+                    productSitemapUrls,
+                    scannedSitemapIndexes,
+                    remainingProductNumbers,
+                    foundUrlsByProductNumber
+            );
+            if (remainingProductNumbers.isEmpty()) {
+                return foundUrlsByProductNumber;
+            }
+        }
+
+        return foundUrlsByProductNumber;
+    }
+
+    private void binaryScanForProductNumber(
+            String productNumber,
+            List<String> productSitemapUrls,
+            Set<Integer> scannedSitemapIndexes,
+            Set<String> remainingProductNumbers,
+            Map<String, String> foundUrlsByProductNumber
+    ) {
+        long targetProductNumber = Long.parseLong(productNumber);
+        int low = 0;
+        int high = productSitemapUrls.size() - 1;
+
+        while (low <= high && remainingProductNumbers.contains(productNumber)) {
+            int middle = low + (high - low) / 2;
+            ProductSitemapScanResult scanResult = scanProductSitemap(
+                    middle,
+                    productSitemapUrls,
+                    scannedSitemapIndexes,
+                    remainingProductNumbers,
+                    foundUrlsByProductNumber
+            );
+
+            if (!remainingProductNumbers.contains(productNumber)) {
+                return;
+            }
+
+            Optional<ProductNumberBounds> productNumberBounds = scanResult.productNumberBounds();
+            if (productNumberBounds.isEmpty()) {
+                return;
+            }
+
+            ProductNumberBounds bounds = productNumberBounds.get();
+            if (targetProductNumber < bounds.lower()) {
+                high = middle - 1;
+            } else if (targetProductNumber > bounds.upper()) {
+                low = middle + 1;
+            } else {
+                return;
+            }
+        }
+    }
+
+    private ProductSitemapScanResult scanProductSitemap(
+            int sitemapIndex,
+            List<String> productSitemapUrls,
+            Set<Integer> scannedSitemapIndexes,
+            Set<String> remainingProductNumbers,
+            Map<String, String> foundUrlsByProductNumber
+    ) {
+        scannedSitemapIndexes.add(sitemapIndex);
+        List<String> productUrls = productUrlsInSitemap(productSitemapUrls.get(sitemapIndex));
+        String firstProductNumber = null;
+        String lastProductNumber = null;
+
+        for (String productUrl : productUrls) {
+            Optional<String> extractedProductNumber = extractProductNumber(productUrl);
+            if (extractedProductNumber.isPresent() && isLongValue(extractedProductNumber.get())) {
+                if (firstProductNumber == null) {
+                    firstProductNumber = extractedProductNumber.get();
+                }
+                lastProductNumber = extractedProductNumber.get();
+            }
+
+            String matchedProductNumber = findMatchingProductNumber(productUrl, remainingProductNumbers);
+            if (matchedProductNumber != null) {
+                foundUrlsByProductNumber.put(matchedProductNumber, productUrl);
+                remainingProductNumbers.remove(matchedProductNumber);
+            }
+        }
+
+        return new ProductSitemapScanResult(firstProductNumber, lastProductNumber);
+    }
+
+    private List<String> productUrlsInSitemap(String productSitemapUrl) {
         verifyAllowed(productSitemapUrl);
         String productSitemapXml = httpFetcher.fetch(productSitemapUrl);
 
@@ -64,27 +166,6 @@ public class SitemapService {
         }
 
         return new ArrayList<>(productUrls);
-    }
-
-    public Map<String, String> findProductUrlsByProductNumbers(Collection<String> productNumbers) {
-        Set<String> remainingProductNumbers = new LinkedHashSet<>(productNumbers);
-        Map<String, String> foundUrlsByProductNumber = new LinkedHashMap<>();
-
-        for (String productSitemapUrl : findProductSitemapUrls()) {
-            if (remainingProductNumbers.isEmpty()) {
-                break;
-            }
-
-            for (String productUrl : findProductUrls(productSitemapUrl)) {
-                String matchedProductNumber = findMatchingProductNumber(productUrl, remainingProductNumbers);
-                if (matchedProductNumber != null) {
-                    foundUrlsByProductNumber.put(matchedProductNumber, productUrl);
-                    remainingProductNumbers.remove(matchedProductNumber);
-                }
-            }
-        }
-
-        return foundUrlsByProductNumber;
     }
 
     List<String> extractLocValues(String xml) {
@@ -151,6 +232,39 @@ public class SitemapService {
         }
 
         return null;
+    }
+
+    private record ProductSitemapScanResult(String firstProductNumber, String lastProductNumber) {
+
+        private Optional<ProductNumberBounds> productNumberBounds() {
+            if (firstProductNumber == null || lastProductNumber == null) {
+                return Optional.empty();
+            }
+
+            try {
+                long first = Long.parseLong(firstProductNumber);
+                long last = Long.parseLong(lastProductNumber);
+                return Optional.of(new ProductNumberBounds(Math.min(first, last), Math.max(first, last)));
+            } catch (NumberFormatException e) {
+                return Optional.empty();
+            }
+        }
+    }
+
+    private record ProductNumberBounds(long lower, long upper) {
+    }
+
+    private static boolean isLongValue(String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        try {
+            Long.parseLong(value);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private static String trimBeforeXml(String xml) {

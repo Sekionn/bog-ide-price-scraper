@@ -1,6 +1,9 @@
 package dk.sebastian.pricescraper.controller;
 
+import dk.sebastian.pricescraper.dto.ProductLookupFailureDto;
 import dk.sebastian.pricescraper.dto.ProductPriceDto;
+import dk.sebastian.pricescraper.dto.ProductPriceLookupRequestDto;
+import dk.sebastian.pricescraper.service.ProductLookupFailureService;
 import dk.sebastian.pricescraper.service.ProductRefreshService;
 import dk.sebastian.pricescraper.service.ProductPriceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,10 +23,16 @@ public class ProductPriceController {
 
     private final ProductPriceService productPriceService;
     private final ProductRefreshService productRefreshService;
+    private final ProductLookupFailureService productLookupFailureService;
 
-    public ProductPriceController(ProductPriceService productPriceService, ProductRefreshService productRefreshService) {
+    public ProductPriceController(
+            ProductPriceService productPriceService,
+            ProductRefreshService productRefreshService,
+            ProductLookupFailureService productLookupFailureService
+    ) {
         this.productPriceService = productPriceService;
         this.productRefreshService = productRefreshService;
+        this.productLookupFailureService = productLookupFailureService;
     }
 
     @GetMapping("/latest")
@@ -33,8 +42,14 @@ public class ProductPriceController {
     }
 
     @PostMapping("/batch")
-    @Operation(summary = "Find prices by identifier", description = "Looks up products by Varenr. or EAN and refreshes stale known products before returning.")
-    public List<ProductPriceDto> batch(@RequestBody List<String> identifiers) {
-        return productRefreshService.findFreshByProductNumberOrEanNumber(identifiers);
+    @Operation(summary = "Find prices by identifier", description = "Looks up products by Varenr. or EAN and refreshes stale known products later.")
+    public List<ProductPriceDto> batch(@RequestBody List<ProductPriceLookupRequestDto> requests) {
+        return productRefreshService.findFreshByProductNumberOrEanNumberRequests(requests);
+    }
+
+    @GetMapping("/lookup-failures")
+    @Operation(summary = "Get failed product lookups", description = "Returns tracked products that could not be found after all lookup strategies.")
+    public List<ProductLookupFailureDto> lookupFailures() {
+        return productLookupFailureService.findAll();
     }
 }
