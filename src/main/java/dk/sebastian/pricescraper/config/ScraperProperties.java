@@ -18,6 +18,7 @@ public class ScraperProperties {
     private Duration requestTimeout = Duration.ofSeconds(20);
     private Duration connectTimeout = Duration.ofSeconds(10);
     private Duration refreshAfter = Duration.ofDays(7);
+    private Duration sitemapCacheTtl = Duration.ofDays(7);
     private Duration maxRunTime = Duration.ofHours(5);
     private String discoveryCron = "0 0 3 ? * MON";
     private String discoveryZone = "Europe/Copenhagen";
@@ -109,6 +110,14 @@ public class ScraperProperties {
 
     public void setRefreshAfter(Duration refreshAfter) {
         this.refreshAfter = refreshAfter;
+    }
+
+    public Duration getSitemapCacheTtl() {
+        return sitemapCacheTtl;
+    }
+
+    public void setSitemapCacheTtl(Duration sitemapCacheTtl) {
+        this.sitemapCacheTtl = sitemapCacheTtl;
     }
 
     public Duration getMaxRunTime() {

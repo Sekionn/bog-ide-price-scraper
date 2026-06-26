@@ -25,21 +25,36 @@ public class SitemapService {
     private final HttpFetcherService httpFetcher;
     private final ScraperProperties properties;
     private final RobotsService robotsService;
+    private final SitemapCacheService sitemapCacheService;
 
     @Autowired
-    public SitemapService(HttpFetcherService httpFetcher, ScraperProperties properties, RobotsService robotsService) {
+    public SitemapService(
+            HttpFetcherService httpFetcher,
+            ScraperProperties properties,
+            RobotsService robotsService,
+            SitemapCacheService sitemapCacheService
+    ) {
         this.httpFetcher = httpFetcher;
         this.properties = properties;
         this.robotsService = robotsService;
+        this.sitemapCacheService = sitemapCacheService;
     }
 
     SitemapService(HttpFetcherService httpFetcher, ScraperProperties properties) {
-        this(httpFetcher, properties, null);
+        this(httpFetcher, properties, null, null);
+    }
+
+    SitemapService(
+            HttpFetcherService httpFetcher,
+            ScraperProperties properties,
+            RobotsService robotsService
+    ) {
+        this(httpFetcher, properties, robotsService, null);
     }
 
     public List<String> findProductSitemapUrls() {
         verifyAllowed(properties.getSitemapIndexUrl());
-        String sitemapIndexXml = httpFetcher.fetch(properties.getSitemapIndexUrl());
+        String sitemapIndexXml = fetchSitemapXml(properties.getSitemapIndexUrl());
 
         return extractLocValues(sitemapIndexXml).stream()
                 .filter(this::isProductSitemapUrl)
@@ -156,7 +171,7 @@ public class SitemapService {
 
     private List<String> productUrlsInSitemap(String productSitemapUrl) {
         verifyAllowed(productSitemapUrl);
-        String productSitemapXml = httpFetcher.fetch(productSitemapUrl);
+        String productSitemapXml = fetchSitemapXml(productSitemapUrl);
 
         Set<String> productUrls = new LinkedHashSet<>();
         for (String url : extractLocValues(productSitemapXml)) {
@@ -166,6 +181,14 @@ public class SitemapService {
         }
 
         return new ArrayList<>(productUrls);
+    }
+
+    private String fetchSitemapXml(String sitemapUrl) {
+        if (sitemapCacheService == null) {
+            return httpFetcher.fetch(sitemapUrl);
+        }
+
+        return sitemapCacheService.getOrFetch(sitemapUrl, () -> httpFetcher.fetch(sitemapUrl));
     }
 
     List<String> extractLocValues(String xml) {
