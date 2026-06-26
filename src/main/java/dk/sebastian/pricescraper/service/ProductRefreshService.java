@@ -25,7 +25,6 @@ public class ProductRefreshService {
     private static final Logger log = LoggerFactory.getLogger(ProductRefreshService.class);
     private static final Set<Integer> EAN_LENGTHS = Set.of(8, 12, 13, 14);
     private static final String BOOK_PRODUCT_TYPE = "BOG";
-    private static final String GENERAL_PRODUCT_TYPE = "VARE";
     private static final List<String> BOOK_TYPES = List.of("indbundet", "haeftet", "hardback", "paperback");
 
     private final ProductPriceService productPriceService;
@@ -273,7 +272,7 @@ public class ProductRefreshService {
             metadataByIdentifier.putIfAbsent(request.getIdentifier().trim(), new LookupMetadata(
                     clean(request.getName()),
                     null,
-                    normalizeRequestProductType(request.getProductType())
+                    clean(request.getProductType())
             ));
         }
 
@@ -366,19 +365,6 @@ public class ProductRefreshService {
 
     private static String clean(String value) {
         return hasText(value) ? value.trim() : null;
-    }
-
-    private static String normalizeRequestProductType(String productType) {
-        if (!hasText(productType)) {
-            throw new IllegalArgumentException("productType must be either VARE or BOG");
-        }
-
-        String normalizedProductType = productType.trim().toUpperCase(Locale.ROOT);
-        if (BOOK_PRODUCT_TYPE.equals(normalizedProductType) || GENERAL_PRODUCT_TYPE.equals(normalizedProductType)) {
-            return normalizedProductType;
-        }
-
-        throw new IllegalArgumentException("productType must be either VARE or BOG");
     }
 
     record LookupMetadata(String name, String author, String productType) {

@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductRefreshServiceTest {
 
@@ -208,21 +207,28 @@ class ProductRefreshServiceTest {
     }
 
     @Test
-    void rejectsLookupRequestsWithUnknownProductType() {
+    void tracksUnknownProductTypeAsNormalProductDuringRequestLookup() {
+        ScraperProperties properties = new ScraperProperties();
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
         ProductRefreshService productRefreshService = new ProductRefreshService(
-                new TestProductPriceService(new ScraperProperties()),
-                new TestProductPriceCacheService(new ScraperProperties()),
+                productPriceService,
+                new TestProductPriceCacheService(properties),
                 new TestProductPageScraperService(),
                 new TestSitemapService(),
                 new TestProductLookupFailureService(),
-                new ScraperProperties()
+                properties
         );
 
-        assertThatThrownBy(() -> productRefreshService.findFreshByProductNumberOrEanNumberRequests(List.of(
+        List<ProductPriceDto> result = productRefreshService.findFreshByProductNumberOrEanNumberRequests(List.of(
                 new ProductPriceLookupRequestDto("000607", "Some Product", "books")
-        )))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("productType must be either VARE or BOG");
+        ));
+
+        assertThat(result).isEmpty();
+        assertThat(productPriceService.trackedProductTypesByProductNumber).containsExactly(Map.entry("000607", "books"));
+        assertThat(productRefreshService.fallbackProductUrl(
+                new ProductRefreshService.LookupMetadata("Some Product", null, "books"),
+                "000607"
+        )).isEqualTo("https://www.bog-ide.dk/products/some-product-000607");
     }
 
     @Test

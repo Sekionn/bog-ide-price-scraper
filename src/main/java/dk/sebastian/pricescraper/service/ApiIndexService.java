@@ -78,7 +78,7 @@ public class ApiIndexService {
                         "placeholderRows", "Tracked products without a price are not returned.",
                         "unknownProducts", "Unknown product numbers are stored as placeholder rows and are not scraped during the request.",
                         "lookupFailures", "Products that cannot be found after all lookup strategies are listed at /api/prices/lookup-failures.",
-                        "productType", "Must be either VARE or BOG. Only BOG uses book fallback URL variants."
+                        "productType", "Any value is accepted. BOG gets book fallback URL handling; all other values use normal product fallback."
                 )
         );
     }
