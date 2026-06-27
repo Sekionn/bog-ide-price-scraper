@@ -68,22 +68,25 @@ keytool -genkeypair `
 
 Run the app with HTTPS enabled:
 
-```powershell
-docker run -d `
-  --name bog-ide-price-scraper `
-  --network bogide-net `
-  -p 8443:8443 `
-  -e SERVER_PORT=8443 `
-  -e SERVER_SSL_ENABLED=true `
-  -e SERVER_SSL_KEY_STORE=/app/certs/bog-ide-price-scraper.p12 `
-  -e SERVER_SSL_KEY_STORE_PASSWORD=change-this-password `
-  -e SERVER_SSL_KEY_STORE_TYPE=PKCS12 `
-  -e SERVER_SSL_KEY_ALIAS=bog-ide-price-scraper `
-  -e SPRING_DATASOURCE_URL=jdbc:mysql://bog-ide-price-mysql:3306/bog_ide_prices `
-  -e SPRING_DATASOURCE_USERNAME=bogide `
-  -e SPRING_DATASOURCE_PASSWORD=bogide `
-  -e SPRING_DATA_REDIS_HOST=bog-ide-price-redis `
-  -e SPRING_DATA_REDIS_PORT=6379 `
+```Bash
+docker run -d \
+  --name bog-ide-price-scraper \
+  --network bogide-net \
+  --memory=1200m \
+  --memory-swap=1400m \
+  -p 8443:8443 \
+  -e SERVER_PORT=8443 \
+  -e SERVER_SSL_ENABLED=true \
+  -e SERVER_SSL_KEY_STORE=/app/certs/bog-ide-price-scraper.p12 \
+  -e SERVER_SSL_KEY_STORE_PASSWORD=change-this-password \
+  -e SERVER_SSL_KEY_STORE_TYPE=PKCS12 \
+  -e SERVER_SSL_KEY_ALIAS=bog-ide-price-scraper \
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://bog-ide-price-mysql:3306/bog_ide_prices \
+  -e SPRING_DATASOURCE_USERNAME=bogide \
+  -e SPRING_DATASOURCE_PASSWORD=bogide \
+  -e SPRING_DATA_REDIS_HOST=bog-ide-price-redis \
+  -e SPRING_DATA_REDIS_PORT=6379 \
+  -e JAVA_TOOL_OPTIONS="-Xms128m -Xmx700m -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=128m" \
   bog-ide-price-scraper:latest
 ```
 
