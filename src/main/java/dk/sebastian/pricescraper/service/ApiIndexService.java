@@ -128,8 +128,9 @@ public class ApiIndexService {
                         "message", "Product discovery started. Check /api/discovery/status for progress."
                 ),
                 Map.of(
-                        "query", "?limit=10",
+                        "query", "?limit=10&overwriteExistingUrls=false",
                         "limit", "Optional. Number of new products to add. 0 means no limit.",
+                        "overwriteExistingUrls", "Optional. Defaults to false. Set true to replace stored URLs with sitemap URLs.",
                         "maxRunTime", "Stops after scraper.discovery-max-run-time.",
                         "conflictStatus", 409,
                         "conflictReason", "Returned when product discovery is already running."

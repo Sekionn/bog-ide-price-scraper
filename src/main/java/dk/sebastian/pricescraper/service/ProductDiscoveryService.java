@@ -21,7 +21,11 @@ public class ProductDiscoveryService {
         this.productPriceService = productPriceService;
     }
 
-    public ProductDiscoveryResult discoverProductsUntil(Instant deadline, int productLimit) {
+    public ProductDiscoveryResult discoverProductsUntil(
+            Instant deadline,
+            int productLimit,
+            boolean overwriteExistingUrls
+    ) {
         int discovered = 0;
         int alreadyKnown = 0;
         int invalidUrl = 0;
@@ -44,7 +48,12 @@ public class ProductDiscoveryService {
                 }
 
                 try {
-                    if (productPriceService.trackProduct(productNumber.get(), productUrl, null)) {
+                    if (productPriceService.trackProduct(
+                            productNumber.get(),
+                            productUrl,
+                            null,
+                            overwriteExistingUrls
+                    )) {
                         discovered++;
                     } else {
                         alreadyKnown++;

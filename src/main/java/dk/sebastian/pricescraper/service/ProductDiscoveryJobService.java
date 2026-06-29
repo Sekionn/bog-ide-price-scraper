@@ -32,10 +32,10 @@ public class ProductDiscoveryJobService {
 
     @Scheduled(cron = "${scraper.discovery-cron}", zone = "${scraper.discovery-zone}")
     public void runScheduled() {
-        runOnce(properties.getMaxDiscoveredProductsPerRun());
+        runOnce(properties.getMaxDiscoveredProductsPerRun(), false);
     }
 
-    public ProductDiscoverySummary runOnce(Integer requestedLimit) {
+    public ProductDiscoverySummary runOnce(Integer requestedLimit, boolean overwriteExistingUrls) {
         if (!running.compareAndSet(false, true)) {
             throw new IllegalStateException("Product discovery is already running");
         }
@@ -47,9 +47,18 @@ public class ProductDiscoveryJobService {
         try {
             Instant deadline = startedAt.plus(properties.getDiscoveryMaxRunTime());
             int productLimit = normalizedLimit(requestedLimit);
-            log.info("Starting product sitemap discovery. Limit: {}, deadline: {}", productLimit, deadline);
+            log.info(
+                    "Starting product sitemap discovery. Limit: {}, overwrite existing URLs: {}, deadline: {}",
+                    productLimit,
+                    overwriteExistingUrls,
+                    deadline
+            );
 
-            ProductDiscoveryResult result = productDiscoveryService.discoverProductsUntil(deadline, productLimit);
+            ProductDiscoveryResult result = productDiscoveryService.discoverProductsUntil(
+                    deadline,
+                    productLimit,
+                    overwriteExistingUrls
+            );
             Instant finishedAt = Instant.now();
             ProductDiscoverySummary summary = new ProductDiscoverySummary(
                     startedAt,

@@ -24,11 +24,16 @@ public class ProductDiscoveryController {
     }
 
     @PostMapping("/run")
-    @Operation(summary = "Start product discovery", description = "Scans product sitemaps and stores missing product numbers and URLs.")
+    @Operation(
+            summary = "Start product discovery",
+            description = "Scans product sitemaps and stores missing product numbers and URLs. "
+                    + "Existing URLs are only replaced when overwriteExistingUrls is true."
+    )
     public ResponseEntity<ProductDiscoveryRunResponseDto> runNow(
-            @RequestParam(required = false) Integer limit
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(defaultValue = "false") boolean overwriteExistingUrls
     ) {
-        return productDiscoveryApiService.runNow(limit);
+        return productDiscoveryApiService.runNow(limit, overwriteExistingUrls);
     }
 
     @GetMapping("/status")

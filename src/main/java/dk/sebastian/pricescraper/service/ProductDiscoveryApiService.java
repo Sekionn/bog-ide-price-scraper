@@ -17,7 +17,7 @@ public class ProductDiscoveryApiService {
         this.productDiscoveryJobService = productDiscoveryJobService;
     }
 
-    public ResponseEntity<ProductDiscoveryRunResponseDto> runNow(Integer limit) {
+    public ResponseEntity<ProductDiscoveryRunResponseDto> runNow(Integer limit, boolean overwriteExistingUrls) {
         if (limit != null && limit < 0) {
             return ResponseEntity.badRequest().body(new ProductDiscoveryRunResponseDto(
                     false,
@@ -32,7 +32,7 @@ public class ProductDiscoveryApiService {
             ));
         }
 
-        CompletableFuture.runAsync(() -> productDiscoveryJobService.runOnce(limit));
+        CompletableFuture.runAsync(() -> productDiscoveryJobService.runOnce(limit, overwriteExistingUrls));
 
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ProductDiscoveryRunResponseDto(
                 true,

@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -62,12 +63,22 @@ public class ProductPriceService {
 
     @Transactional
     public boolean trackProduct(String productNumber, String url, String eanNumber) {
-        return trackProduct(productNumber, url, eanNumber, null);
+        return trackProduct(productNumber, url, eanNumber, false);
+    }
+
+    @Transactional
+    public boolean trackProduct(
+            String productNumber,
+            String url,
+            String eanNumber,
+            boolean overwriteExistingUrl
+    ) {
+        return trackProduct(productNumber, url, eanNumber, null, null, null, null, overwriteExistingUrl);
     }
 
     @Transactional
     public boolean trackProduct(String productNumber, String url, String eanNumber, String title) {
-        return trackProduct(productNumber, url, eanNumber, title, null, null, null);
+        return trackProduct(productNumber, url, eanNumber, title, null, null, null, false);
     }
 
     @Transactional
@@ -80,7 +91,26 @@ public class ProductPriceService {
             String productType,
             String bookType
     ) {
-        if (productPriceRepository.existsByProductNumber(productNumber)) {
+        return trackProduct(productNumber, url, eanNumber, title, author, productType, bookType, false);
+    }
+
+    @Transactional
+    public boolean trackProduct(
+            String productNumber,
+            String url,
+            String eanNumber,
+            String title,
+            String author,
+            String productType,
+            String bookType,
+            boolean overwriteExistingUrl
+    ) {
+        Optional<ProductPriceEntity> existingProduct = productPriceRepository.findById(productNumber);
+        if (existingProduct.isPresent()) {
+            ProductPriceEntity product = existingProduct.get();
+            if (hasText(url) && (overwriteExistingUrl || !hasText(product.getUrl()))) {
+                product.setUrl(url);
+            }
             return false;
         }
 
@@ -190,5 +220,9 @@ public class ProductPriceService {
         }
 
         return List.copyOf(latestByProduct.values());
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

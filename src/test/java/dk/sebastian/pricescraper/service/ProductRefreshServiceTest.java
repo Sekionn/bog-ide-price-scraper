@@ -295,6 +295,29 @@ class ProductRefreshServiceTest {
     }
 
     @Test
+    void refreshesStoredDatabaseUrlWithoutSearchingSitemaps() {
+        ScraperProperties properties = new ScraperProperties();
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
+        TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
+        TestSitemapService sitemapService = new TestSitemapService();
+        String storedUrl = "https://www.bog-ide.dk/products/stored-product-123456";
+        productPriceService.latestKnownEntities = List.of(new ProductPriceEntity("123456", storedUrl, null));
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                productPriceService,
+                new TestProductPriceCacheService(properties),
+                productPageScraper,
+                sitemapService,
+                new TestProductLookupFailureService(),
+                properties
+        );
+
+        productRefreshService.refreshKnownProductsUntil(Instant.now().plusSeconds(60));
+
+        assertThat(productPageScraper.scrapedUrls).containsExactly(storedUrl);
+        assertThat(sitemapService.discoveryRequests).isEmpty();
+    }
+
+    @Test
     void recordsLookupFailureWhenBookAuthorIsMissingFromStoredData() {
         ScraperProperties properties = new ScraperProperties();
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
@@ -502,11 +525,6 @@ class ProductRefreshServiceTest {
             super(null, new ScraperProperties());
         }
 
-        @Override
-        public Map<String, String> findProductUrlsByProductNumbers(java.util.Collection<String> productNumbers) {
-            discoveryRequests = new LinkedHashSet<>(productNumbers);
-            return Map.of();
-        }
     }
 
     private static class TestProductLookupFailureService extends ProductLookupFailureService {

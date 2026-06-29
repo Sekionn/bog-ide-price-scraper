@@ -147,32 +147,18 @@ public class ProductRefreshService {
             return;
         }
 
-        String sitemapFailureReason = null;
-        Map<String, String> discoveredUrlsByProductNumber = Map.of();
-        try {
-            discoveredUrlsByProductNumber = sitemapService.findProductUrlsByProductNumbers(List.of(product.getProductNumber()));
-        } catch (Exception e) {
-            sitemapFailureReason = e.getMessage();
-            log.warn("Could not discover product URL for {} from sitemaps", product.getProductNumber(), e);
-        }
-        String discoveredUrl = discoveredUrlsByProductNumber.get(product.getProductNumber());
-        if (discoveredUrl == null) {
-            LookupMetadata metadata = new LookupMetadata(product.getTitle(), product.getAuthor(), product.getProductType());
-            List<String> fallbackUrls = fallbackProductUrls(metadata, product.getProductNumber());
-            if (!fallbackUrls.isEmpty()) {
-                refreshFallbackProduct(product.getProductNumber(), fallbackUrls);
-                return;
-            }
-
-            recordLookupFailure(
-                    product.getProductNumber(),
-                    null,
-                    fallbackLookupFailureReason(metadata, sitemapFailureReason)
-            );
+        LookupMetadata metadata = new LookupMetadata(product.getTitle(), product.getAuthor(), product.getProductType());
+        List<String> fallbackUrls = fallbackProductUrls(metadata, product.getProductNumber());
+        if (!fallbackUrls.isEmpty()) {
+            refreshFallbackProduct(product.getProductNumber(), fallbackUrls);
             return;
         }
 
-        refresh(discoveredUrl);
+        recordLookupFailure(
+                product.getProductNumber(),
+                null,
+                fallbackLookupFailureReason(metadata)
+        );
     }
 
     private void trackUnknownProductNumbers(Set<String> unknownIdentifiers, Map<String, LookupMetadata> metadataByIdentifier) {
@@ -222,14 +208,6 @@ public class ProductRefreshService {
 
     private void recordLookupFailure(String productNumber, String attemptedUrl, String reason) {
         productLookupFailureService.recordFailure(productNumber, attemptedUrl, reason);
-    }
-
-    private static String finalLookupFailureReason(String sitemapFailureReason) {
-        if (hasText(sitemapFailureReason)) {
-            return "Could not discover product URL from sitemap and could not build fallback URL: " + sitemapFailureReason;
-        }
-
-        return "Could not discover product URL or build fallback URL";
     }
 
     private static Set<String> unknownIdentifiers(Set<String> identifiers, List<ProductPriceEntity> latestMatches) {
@@ -330,12 +308,12 @@ public class ProductRefreshService {
         return hasText(productType) && BOOK_PRODUCT_TYPE.equals(productType.trim().toUpperCase(Locale.ROOT));
     }
 
-    private static String fallbackLookupFailureReason(LookupMetadata metadata, String sitemapFailureReason) {
+    private static String fallbackLookupFailureReason(LookupMetadata metadata) {
         if (metadata != null && isBook(metadata.productType()) && !hasText(metadata.author())) {
             return "Could not build book fallback URL because product author is missing";
         }
 
-        return finalLookupFailureReason(sitemapFailureReason);
+        return "Product URL is not yet present in the local sitemap catalogue and no fallback URL could be built";
     }
 
     private static String slug(String title) {

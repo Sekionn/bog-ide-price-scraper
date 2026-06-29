@@ -39,7 +39,11 @@ class ProductDiscoveryServiceTest {
 
         ProductDiscoveryService productDiscoveryService = new ProductDiscoveryService(sitemapService, productPriceService);
 
-        ProductDiscoveryResult result = productDiscoveryService.discoverProductsUntil(Instant.now().plusSeconds(60), 2);
+        ProductDiscoveryResult result = productDiscoveryService.discoverProductsUntil(
+                Instant.now().plusSeconds(60),
+                2,
+                false
+        );
 
         assertThat(result.discoveredCount()).isEqualTo(2);
         assertThat(result.alreadyKnownCount()).isEqualTo(1);
@@ -61,7 +65,12 @@ class ProductDiscoveryServiceTest {
         }
 
         @Override
-        public boolean trackProduct(String productNumber, String url, String eanNumber) {
+        public boolean trackProduct(
+                String productNumber,
+                String url,
+                String eanNumber,
+                boolean overwriteExistingUrl
+        ) {
             trackedProducts.put(productNumber, url);
             return insertedByProductNumber.getOrDefault(productNumber, false);
         }
