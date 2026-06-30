@@ -17,7 +17,7 @@ public class ProductPriceCacheService {
 
     private static final String PRODUCT_NUMBER_KEY_PART = "product-number";
     private static final String EAN_NUMBER_KEY_PART = "ean";
-    private static final String CACHE_SCHEMA_VERSION = "v2";
+    private static final String CACHE_SCHEMA_VERSION = "v3";
 
     private final RedisTemplate<String, ProductPriceDto> redisTemplate;
     private final ScraperProperties properties;

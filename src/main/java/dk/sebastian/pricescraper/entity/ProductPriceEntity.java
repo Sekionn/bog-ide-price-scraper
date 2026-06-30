@@ -44,8 +44,11 @@ public class ProductPriceEntity {
     @Column(name = "book_type", length = 50)
     private String bookType;
 
-    @Column(precision = 12, scale = 2)
-    private BigDecimal price;
+    @Column(name = "normal_price", precision = 12, scale = 2)
+    private BigDecimal normalPrice;
+
+    @Column(name = "special_offer_price", precision = 12, scale = 2)
+    private BigDecimal specialOfferPrice;
 
     @Column(length = 10)
     private String currency;
@@ -74,12 +77,12 @@ public class ProductPriceEntity {
             String eanNumber,
             String title,
             String author,
-            BigDecimal price,
+            BigDecimal normalPrice,
             String currency,
             String availability,
             Instant scrapedAt
     ) {
-        this(productNumber, url, eanNumber, title, author, price, currency, availability, scrapedAt, 0, null, false);
+        this(productNumber, url, eanNumber, title, author, normalPrice, null, currency, availability, scrapedAt, 0, null, false);
     }
 
     public ProductPriceEntity(
@@ -88,7 +91,7 @@ public class ProductPriceEntity {
             String eanNumber,
             String title,
             String author,
-            BigDecimal price,
+            BigDecimal normalPrice,
             String currency,
             String availability,
             Instant scrapedAt,
@@ -101,7 +104,8 @@ public class ProductPriceEntity {
                 eanNumber,
                 title,
                 author,
-                price,
+                normalPrice,
+                null,
                 currency,
                 availability,
                 scrapedAt,
@@ -117,7 +121,8 @@ public class ProductPriceEntity {
             String eanNumber,
             String title,
             String author,
-            BigDecimal price,
+            BigDecimal normalPrice,
+            BigDecimal specialOfferPrice,
             String currency,
             String availability,
             Instant scrapedAt,
@@ -130,7 +135,8 @@ public class ProductPriceEntity {
         this.eanNumber = eanNumber;
         this.title = title;
         this.author = author;
-        this.price = price;
+        this.normalPrice = normalPrice;
+        this.specialOfferPrice = specialOfferPrice;
         this.currency = currency;
         this.availability = availability;
         this.scrapedAt = scrapedAt;
@@ -209,7 +215,19 @@ public class ProductPriceEntity {
     }
 
     public BigDecimal getPrice() {
-        return price;
+        return specialOfferPrice != null ? specialOfferPrice : normalPrice;
+    }
+
+    public BigDecimal getNormalPrice() {
+        return normalPrice;
+    }
+
+    public BigDecimal getSpecialOfferPrice() {
+        return specialOfferPrice;
+    }
+
+    public boolean isSpecialOffer() {
+        return specialOfferPrice != null;
     }
 
     public String getCurrency() {
@@ -243,7 +261,7 @@ public class ProductPriceEntity {
     public boolean hasScrapedPrice() {
         return url != null
                 && title != null
-                && price != null
+                && normalPrice != null
                 && currency != null
                 && scrapedAt != null;
     }

@@ -168,7 +168,8 @@ public class ApiIndexService {
                 "eanNumber", "9788711477960",
                 "title", "Egholms Gud",
                 "author", "Johannes Buchholtz",
-                "price", "69.95"
+                "price", "69.95",
+                "specialOffer", false
         );
     }
 

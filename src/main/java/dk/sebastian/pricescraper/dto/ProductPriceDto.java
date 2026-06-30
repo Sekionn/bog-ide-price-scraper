@@ -15,6 +15,7 @@ public class ProductPriceDto {
     private final String title;
     private final String author;
     private final BigDecimal price;
+    private final boolean specialOffer;
 
     @JsonCreator
     public ProductPriceDto(
@@ -24,7 +25,8 @@ public class ProductPriceDto {
             @JsonProperty("eanNumber") String eanNumber,
             @JsonProperty("title") String title,
             @JsonProperty("author") String author,
-            @JsonProperty("price") BigDecimal price
+            @JsonProperty("price") BigDecimal price,
+            @JsonProperty("specialOffer") boolean specialOffer
     ) {
         this.id = id;
         this.url = url;
@@ -33,6 +35,19 @@ public class ProductPriceDto {
         this.title = title;
         this.author = author;
         this.price = price;
+        this.specialOffer = specialOffer;
+    }
+
+    public ProductPriceDto(
+            String id,
+            String url,
+            String productNumber,
+            String eanNumber,
+            String title,
+            String author,
+            BigDecimal price
+    ) {
+        this(id, url, productNumber, eanNumber, title, author, price, false);
     }
 
     public String getId() {
@@ -61,6 +76,10 @@ public class ProductPriceDto {
 
     public BigDecimal getPrice() {
         return price;
+    }
+
+    public boolean isSpecialOffer() {
+        return specialOffer;
     }
 
     @Override

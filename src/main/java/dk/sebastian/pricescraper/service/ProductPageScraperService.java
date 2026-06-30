@@ -23,6 +23,9 @@ import java.util.regex.Pattern;
 public class ProductPageScraperService {
 
     private static final Pattern JSON_PRICE_PATTERN = Pattern.compile("\"price\"\\s*:\\s*\"?([0-9.,]+)\"?");
+    private static final List<String> NORMAL_PRICE_FIELDS = List.of(
+            "normalPrice", "originalPrice", "regularPrice", "listPrice", "beforePrice", "wasPrice"
+    );
     private static final Pattern SKU_PATTERN = Pattern.compile("\"sku\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern BARCODE_PATTERN = Pattern.compile("\"barcode\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern GTIN13_PATTERN = Pattern.compile("\"gtin13\"\\s*:\\s*\"([^\"]+)\"");
@@ -45,6 +48,7 @@ public class ProductPageScraperService {
                 .or(() -> findPriceInMetaTags(document))
                 .or(() -> findPriceWithRegex(html))
                 .orElseThrow(() -> new IllegalStateException("Could not find price on " + productUrl));
+        priceDetails = addExplicitNormalPriceFromPage(document, priceDetails);
         ProductIdentifiers identifiers = findIdentifiersInJsonLd(document)
                 .or(() -> findIdentifiersWithRegex(html))
                 .orElseThrow(() -> new IllegalStateException("Could not find product number and EAN on " + productUrl));
@@ -55,7 +59,8 @@ public class ProductPageScraperService {
                 identifiers.eanNumber(),
                 findTitle(document),
                 findAuthor(document, html).orElse(null),
-                priceDetails.price(),
+                priceDetails.normalPrice(),
+                priceDetails.specialOfferPrice(),
                 priceDetails.currency(),
                 priceDetails.availability(),
                 Instant.now()
@@ -153,16 +158,35 @@ public class ProductPageScraperService {
         if (node.has("offers")) {
             Optional<PriceDetails> offerPrice = findPriceInJson(node.get("offers"));
             if (offerPrice.isPresent()) {
+                Optional<BigDecimal> parentNormalPrice = explicitNormalPrice(node);
+                if (parentNormalPrice.isPresent()
+                        && parentNormalPrice.get().compareTo(offerPrice.get().price()) > 0) {
+                    PriceDetails offer = offerPrice.get();
+                    return Optional.of(new PriceDetails(
+                            parentNormalPrice.get(),
+                            offer.price(),
+                            offer.currency(),
+                            offer.availability()
+                    ));
+                }
                 return offerPrice;
             }
         }
 
         if (node.hasNonNull("price")) {
-            return parsePrice(node.get("price").asText()).map(price -> new PriceDetails(
-                    price,
-                    textOrDefault(node.get("priceCurrency"), "DKK"),
-                    cleanAvailability(textOrDefault(node.get("availability"), ""))
-            ));
+            Optional<BigDecimal> displayedPrice = parsePrice(node.get("price").asText());
+            if (displayedPrice.isPresent()) {
+                BigDecimal normalPrice = explicitNormalPrice(node).orElse(displayedPrice.get());
+                BigDecimal specialOfferPrice = normalPrice.compareTo(displayedPrice.get()) > 0
+                        ? displayedPrice.get()
+                        : null;
+                return Optional.of(new PriceDetails(
+                        normalPrice,
+                        specialOfferPrice,
+                        textOrDefault(node.get("priceCurrency"), "DKK"),
+                        cleanAvailability(textOrDefault(node.get("availability"), ""))
+                ));
+            }
         }
 
         Iterator<JsonNode> children = node.elements();
@@ -282,7 +306,40 @@ public class ProductPageScraperService {
                 ""
         ));
 
-        return parsePrice(priceValue).map(price -> new PriceDetails(price, currency, availability));
+        Optional<BigDecimal> displayedPrice = parsePrice(priceValue);
+        if (displayedPrice.isEmpty()) {
+            return Optional.empty();
+        }
+
+        BigDecimal normalPrice = parsePrice(firstNonBlank(
+                attr(document, "meta[property=product:original_price:amount]", "content"),
+                attr(document, "meta[property=product:regular_price:amount]", "content"),
+                attr(document, "[data-normal-price]", "data-normal-price"),
+                attr(document, "[data-original-price]", "data-original-price"),
+                text(document, ".price--old, .old-price, .original-price, .before-price")
+        )).orElse(displayedPrice.get());
+        BigDecimal specialOfferPrice = normalPrice.compareTo(displayedPrice.get()) > 0 ? displayedPrice.get() : null;
+        return Optional.of(new PriceDetails(normalPrice, specialOfferPrice, currency, availability));
+    }
+
+    private PriceDetails addExplicitNormalPriceFromPage(Document document, PriceDetails details) {
+        Optional<BigDecimal> pageNormalPrice = parsePrice(firstNonBlank(
+                attr(document, "meta[property=product:original_price:amount]", "content"),
+                attr(document, "meta[property=product:regular_price:amount]", "content"),
+                attr(document, "[data-normal-price]", "data-normal-price"),
+                attr(document, "[data-original-price]", "data-original-price"),
+                text(document, ".price--old, .old-price, .original-price, .before-price")
+        ));
+        if (pageNormalPrice.isEmpty() || pageNormalPrice.get().compareTo(details.price()) <= 0) {
+            return details;
+        }
+
+        return new PriceDetails(
+                pageNormalPrice.get(),
+                details.price(),
+                details.currency(),
+                details.availability()
+        );
     }
 
     private Optional<PriceDetails> findPriceWithRegex(String html) {
@@ -399,7 +456,8 @@ public class ProductPageScraperService {
             return Optional.empty();
         }
 
-        String value = rawPrice.replaceAll("[^0-9,.]", "");
+        String value = rawPrice.replaceAll("[^0-9,.]", "")
+                .replaceAll("^[.,]+|[.,]+$", "");
         if (value.isBlank()) {
             return Optional.empty();
         }
@@ -423,6 +481,31 @@ public class ProductPageScraperService {
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
+    }
+
+    private static Optional<BigDecimal> explicitNormalPrice(JsonNode node) {
+        for (String field : NORMAL_PRICE_FIELDS) {
+            JsonNode value = node.get(field);
+            if (value != null && !value.isNull()) {
+                JsonNode scalarValue = value.isObject()
+                        ? firstPresent(value.get("price"), value.get("value"), value.get("amount"))
+                        : value;
+                Optional<BigDecimal> price = parsePrice(scalarValue == null ? null : scalarValue.asText());
+                if (price.isPresent()) {
+                    return price;
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static JsonNode firstPresent(JsonNode... values) {
+        for (JsonNode value : values) {
+            if (value != null && !value.isNull()) {
+                return value;
+            }
+        }
+        return null;
     }
 
 }

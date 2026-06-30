@@ -43,7 +43,8 @@ public class ProductPriceService {
                 productPrice.eanNumber(),
                 productPrice.title(),
                 productPrice.author(),
-                productPrice.price(),
+                productPrice.normalPrice(),
+                productPrice.specialOfferPrice(),
                 productPrice.currency(),
                 productPrice.availability(),
                 productPrice.scrapedAt(),
@@ -174,7 +175,8 @@ public class ProductPriceService {
                 entity.getEanNumber(),
                 entity.getTitle(),
                 entity.getAuthor(),
-                entity.getPrice()
+                entity.getPrice(),
+                entity.isSpecialOffer()
         );
     }
 

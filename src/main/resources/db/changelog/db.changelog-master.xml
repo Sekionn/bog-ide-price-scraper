@@ -22,4 +22,30 @@
             <dropColumn tableName="product_prices" columnName="checked"/>
         </rollback>
     </changeSet>
+
+    <changeSet id="2026-06-30-split-normal-and-special-offer-price" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="product_prices"/>
+            <columnExists tableName="product_prices" columnName="price"/>
+            <not>
+                <columnExists tableName="product_prices" columnName="normal_price"/>
+            </not>
+        </preConditions>
+        <renameColumn
+                tableName="product_prices"
+                oldColumnName="price"
+                newColumnName="normal_price"
+                columnDataType="DECIMAL(12,2)"/>
+        <addColumn tableName="product_prices">
+            <column name="special_offer_price" type="DECIMAL(12,2)"/>
+        </addColumn>
+        <rollback>
+            <dropColumn tableName="product_prices" columnName="special_offer_price"/>
+            <renameColumn
+                    tableName="product_prices"
+                    oldColumnName="normal_price"
+                    newColumnName="price"
+                    columnDataType="DECIMAL(12,2)"/>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>
