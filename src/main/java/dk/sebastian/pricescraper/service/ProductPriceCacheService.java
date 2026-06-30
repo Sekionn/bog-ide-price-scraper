@@ -17,6 +17,7 @@ public class ProductPriceCacheService {
 
     private static final String PRODUCT_NUMBER_KEY_PART = "product-number";
     private static final String EAN_NUMBER_KEY_PART = "ean";
+    private static final String CACHE_SCHEMA_VERSION = "v2";
 
     private final RedisTemplate<String, ProductPriceDto> redisTemplate;
     private final ScraperProperties properties;
@@ -105,7 +106,7 @@ public class ProductPriceCacheService {
     }
 
     private String key(String keyPart, String identifier) {
-        return properties.getCachePrefix() + ":" + keyPart + ":" + identifier;
+        return properties.getCachePrefix() + ":" + CACHE_SCHEMA_VERSION + ":" + keyPart + ":" + identifier;
     }
 
     private static boolean hasText(String value) {

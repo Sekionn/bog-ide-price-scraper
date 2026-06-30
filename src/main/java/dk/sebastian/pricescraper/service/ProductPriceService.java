@@ -34,9 +34,9 @@ public class ProductPriceService {
 
     @Transactional
     public ProductPriceDto save(ProductPrice productPrice) {
-        Instant lastRequestedAt = productPriceRepository.findById(productPrice.productNumber())
-                .map(ProductPriceEntity::getLastRequestedAt)
-                .orElse(null);
+        Optional<ProductPriceEntity> existingProduct = productPriceRepository.findById(productPrice.productNumber());
+        Instant lastRequestedAt = existingProduct.map(ProductPriceEntity::getLastRequestedAt).orElse(null);
+        boolean checked = existingProduct.map(ProductPriceEntity::isChecked).orElse(false);
         ProductPriceEntity entity = new ProductPriceEntity(
                 productPrice.productNumber(),
                 productPrice.url(),
@@ -48,7 +48,8 @@ public class ProductPriceService {
                 productPrice.availability(),
                 productPrice.scrapedAt(),
                 0,
-                lastRequestedAt
+                lastRequestedAt,
+                checked
         );
 
         ProductPriceDto savedProduct = toDto(productPriceRepository.save(entity));

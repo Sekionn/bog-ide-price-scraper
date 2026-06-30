@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <changeSet id="2026-06-30-add-product-price-checked" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="product_prices"/>
+                <not>
+                    <columnExists tableName="product_prices" columnName="checked"/>
+                </not>
+            </and>
+        </preConditions>
+        <sql>
+            ALTER TABLE product_prices
+                ADD COLUMN checked BOOLEAN NOT NULL DEFAULT FALSE AFTER last_requested_at
+        </sql>
+        <rollback>
+            <dropColumn tableName="product_prices" columnName="checked"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

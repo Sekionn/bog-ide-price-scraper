@@ -62,6 +62,9 @@ public class ProductPriceEntity {
     @Column(name = "last_requested_at")
     private Instant lastRequestedAt;
 
+    @Column(nullable = false)
+    private boolean checked;
+
     protected ProductPriceEntity() {
     }
 
@@ -76,7 +79,7 @@ public class ProductPriceEntity {
             String availability,
             Instant scrapedAt
     ) {
-        this(productNumber, url, eanNumber, title, author, price, currency, availability, scrapedAt, 0, null);
+        this(productNumber, url, eanNumber, title, author, price, currency, availability, scrapedAt, 0, null, false);
     }
 
     public ProductPriceEntity(
@@ -92,6 +95,36 @@ public class ProductPriceEntity {
             int staleRequestCount,
             Instant lastRequestedAt
     ) {
+        this(
+                productNumber,
+                url,
+                eanNumber,
+                title,
+                author,
+                price,
+                currency,
+                availability,
+                scrapedAt,
+                staleRequestCount,
+                lastRequestedAt,
+                false
+        );
+    }
+
+    public ProductPriceEntity(
+            String productNumber,
+            String url,
+            String eanNumber,
+            String title,
+            String author,
+            BigDecimal price,
+            String currency,
+            String availability,
+            Instant scrapedAt,
+            int staleRequestCount,
+            Instant lastRequestedAt,
+            boolean checked
+    ) {
         this.productNumber = productNumber;
         this.url = url;
         this.eanNumber = eanNumber;
@@ -103,6 +136,7 @@ public class ProductPriceEntity {
         this.scrapedAt = scrapedAt;
         this.staleRequestCount = staleRequestCount;
         this.lastRequestedAt = lastRequestedAt;
+        this.checked = checked;
     }
 
     public ProductPriceEntity(String productNumber, String eanNumber) {
@@ -196,6 +230,14 @@ public class ProductPriceEntity {
 
     public Instant getLastRequestedAt() {
         return lastRequestedAt;
+    }
+
+    public boolean isChecked() {
+        return checked;
+    }
+
+    public void setChecked(boolean checked) {
+        this.checked = checked;
     }
 
     public boolean hasScrapedPrice() {
