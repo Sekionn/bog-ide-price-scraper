@@ -30,7 +30,6 @@ public class ProductRefreshService {
     private final ProductPriceService productPriceService;
     private final ProductPriceCacheService productPriceCacheService;
     private final ProductPageScraperService productPageScraper;
-    private final SitemapService sitemapService;
     private final ProductLookupFailureService productLookupFailureService;
     private final ScraperProperties properties;
 
@@ -38,14 +37,12 @@ public class ProductRefreshService {
             ProductPriceService productPriceService,
             ProductPriceCacheService productPriceCacheService,
             ProductPageScraperService productPageScraper,
-            SitemapService sitemapService,
             ProductLookupFailureService productLookupFailureService,
             ScraperProperties properties
     ) {
         this.productPriceService = productPriceService;
         this.productPriceCacheService = productPriceCacheService;
         this.productPageScraper = productPageScraper;
-        this.sitemapService = sitemapService;
         this.productLookupFailureService = productLookupFailureService;
         this.properties = properties;
     }
@@ -109,7 +106,9 @@ public class ProductRefreshService {
         int failed = 0;
         Instant now = Instant.now();
 
-        for (ProductPriceEntity latestProduct : productPriceService.findLatestKnownProductsOldestFirst()) {
+        Instant retryFailuresBefore = now.minus(properties.getLookupFailureRetryAfter());
+        for (ProductPriceEntity latestProduct
+                : productPriceService.findEligibleKnownProductsOldestFirst(retryFailuresBefore)) {
             if (Instant.now().isAfter(deadline)) {
                 break;
             }
@@ -313,7 +312,7 @@ public class ProductRefreshService {
             return "Could not build book fallback URL because product author is missing";
         }
 
-        return "Product URL is not yet present in the local sitemap catalogue and no fallback URL could be built";
+        return "Product URL is missing and no fallback URL could be built";
     }
 
     private static String slug(String title) {

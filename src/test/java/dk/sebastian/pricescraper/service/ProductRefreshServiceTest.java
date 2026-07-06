@@ -34,17 +34,35 @@ class ProductRefreshServiceTest {
     }
 
     @Test
+    void appliesConfiguredLookupFailureRetryWindowToRefreshSelection() {
+        ScraperProperties properties = new ScraperProperties();
+        properties.setLookupFailureRetryAfter(java.time.Duration.ofDays(10));
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                productPriceService,
+                new TestProductPriceCacheService(properties),
+                new TestProductPageScraperService(),
+                new TestProductLookupFailureService(),
+                properties
+        );
+        Instant expectedCutoff = Instant.now().minus(java.time.Duration.ofDays(10));
+
+        productRefreshService.refreshKnownProductsUntil(Instant.now().plusSeconds(60));
+
+        assertThat(productPriceService.retryFailuresBefore)
+                .isBetween(expectedCutoff.minusSeconds(1), expectedCutoff.plusSeconds(1));
+    }
+
+    @Test
     void recordsStaleDatabaseMatchesWithoutScrapingDuringRequestLookup() {
         ScraperProperties properties = new ScraperProperties();
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
         TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
         TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
-        TestSitemapService sitemapService = new TestSitemapService();
         ProductRefreshService productRefreshService = new ProductRefreshService(
                 productPriceService,
                 productPriceCacheService,
                 productPageScraper,
-                sitemapService,
                 new TestProductLookupFailureService(),
                 properties
         );
@@ -81,7 +99,6 @@ class ProductRefreshServiceTest {
         assertThat(productPriceService.recordedStaleRequests).containsExactly("123");
         assertThat(productPriceService.savedProducts).isEmpty();
         assertThat(productPageScraper.scrapedUrls).isEmpty();
-        assertThat(sitemapService.discoveryRequests).isEmpty();
     }
 
     @Test
@@ -90,12 +107,10 @@ class ProductRefreshServiceTest {
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
         TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
         TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
-        TestSitemapService sitemapService = new TestSitemapService();
         ProductRefreshService productRefreshService = new ProductRefreshService(
                 productPriceService,
                 productPriceCacheService,
                 productPageScraper,
-                sitemapService,
                 new TestProductLookupFailureService(),
                 properties
         );
@@ -121,7 +136,6 @@ class ProductRefreshServiceTest {
         assertThat(productPriceService.recordedStaleRequests).containsExactly("456");
         assertThat(productPriceService.savedProducts).isEmpty();
         assertThat(productPageScraper.scrapedUrls).isEmpty();
-        assertThat(sitemapService.discoveryRequests).isEmpty();
     }
 
     @Test
@@ -154,12 +168,10 @@ class ProductRefreshServiceTest {
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
         TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
         TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
-        TestSitemapService sitemapService = new TestSitemapService();
         ProductRefreshService productRefreshService = new ProductRefreshService(
                 productPriceService,
                 productPriceCacheService,
                 productPageScraper,
-                sitemapService,
                 new TestProductLookupFailureService(),
                 properties
         );
@@ -175,7 +187,6 @@ class ProductRefreshServiceTest {
         assertThat(productPriceService.trackedAuthorsByProductNumber).containsEntry("000607", null);
         assertThat(productPriceService.trackedProductTypesByProductNumber).containsExactly(Map.entry("000607", "VARE"));
         assertThat(productPriceService.trackedBookTypesByProductNumber).containsEntry("000607", null);
-        assertThat(sitemapService.discoveryRequests).isEmpty();
         assertThat(productPageScraper.scrapedUrls).isEmpty();
     }
 
@@ -185,13 +196,11 @@ class ProductRefreshServiceTest {
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
         TestProductPriceCacheService productPriceCacheService = new TestProductPriceCacheService(properties);
         TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
-        TestSitemapService sitemapService = new TestSitemapService();
         TestProductLookupFailureService productLookupFailureService = new TestProductLookupFailureService();
         ProductRefreshService productRefreshService = new ProductRefreshService(
                 productPriceService,
                 productPriceCacheService,
                 productPageScraper,
-                sitemapService,
                 productLookupFailureService,
                 properties
         );
@@ -202,7 +211,6 @@ class ProductRefreshServiceTest {
 
         assertThat(result).isEmpty();
         assertThat(productPageScraper.scrapedUrls).isEmpty();
-        assertThat(sitemapService.discoveryRequests).isEmpty();
         assertThat(productLookupFailureService.recordedProductNumbers).isEmpty();
     }
 
@@ -214,7 +222,6 @@ class ProductRefreshServiceTest {
                 productPriceService,
                 new TestProductPriceCacheService(properties),
                 new TestProductPageScraperService(),
-                new TestSitemapService(),
                 new TestProductLookupFailureService(),
                 properties
         );
@@ -237,7 +244,6 @@ class ProductRefreshServiceTest {
                 new TestProductPriceService(new ScraperProperties()),
                 new TestProductPriceCacheService(new ScraperProperties()),
                 new TestProductPageScraperService(),
-                new TestSitemapService(),
                 new TestProductLookupFailureService(),
                 new ScraperProperties()
         );
@@ -274,12 +280,10 @@ class ProductRefreshServiceTest {
                 "BOG",
                 null
         ));
-        TestSitemapService sitemapService = new TestSitemapService();
         ProductRefreshService productRefreshService = new ProductRefreshService(
                 productPriceService,
                 productPriceCacheService,
                 productPageScraper,
-                sitemapService,
                 new TestProductLookupFailureService(),
                 properties
         );
@@ -299,14 +303,12 @@ class ProductRefreshServiceTest {
         ScraperProperties properties = new ScraperProperties();
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
         TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
-        TestSitemapService sitemapService = new TestSitemapService();
         String storedUrl = "https://www.bog-ide.dk/products/stored-product-123456";
         productPriceService.latestKnownEntities = List.of(new ProductPriceEntity("123456", storedUrl, null));
         ProductRefreshService productRefreshService = new ProductRefreshService(
                 productPriceService,
                 new TestProductPriceCacheService(properties),
                 productPageScraper,
-                sitemapService,
                 new TestProductLookupFailureService(),
                 properties
         );
@@ -314,7 +316,6 @@ class ProductRefreshServiceTest {
         productRefreshService.refreshKnownProductsUntil(Instant.now().plusSeconds(60));
 
         assertThat(productPageScraper.scrapedUrls).containsExactly(storedUrl);
-        assertThat(sitemapService.discoveryRequests).isEmpty();
     }
 
     @Test
@@ -337,7 +338,6 @@ class ProductRefreshServiceTest {
                 productPriceService,
                 productPriceCacheService,
                 productPageScraper,
-                new TestSitemapService(),
                 productLookupFailureService,
                 properties
         );
@@ -357,7 +357,6 @@ class ProductRefreshServiceTest {
                 new TestProductPriceService(new ScraperProperties()),
                 new TestProductPriceCacheService(new ScraperProperties()),
                 new TestProductPageScraperService(),
-                new TestSitemapService(),
                 new TestProductLookupFailureService(),
                 new ScraperProperties()
         );
@@ -377,6 +376,7 @@ class ProductRefreshServiceTest {
         private final ScraperProperties properties;
         private List<ProductPriceEntity> latestEntities = List.of();
         private List<ProductPriceEntity> latestKnownEntities = List.of();
+        private Instant retryFailuresBefore;
         private List<ProductPriceDto> latestDtos = List.of();
         private Set<String> recordedStaleRequests = Set.of();
         private List<ProductPrice> savedProducts = List.of();
@@ -415,7 +415,8 @@ class ProductRefreshServiceTest {
         }
 
         @Override
-        public List<ProductPriceEntity> findLatestKnownProductsOldestFirst() {
+        public List<ProductPriceEntity> findEligibleKnownProductsOldestFirst(Instant retryFailuresBefore) {
+            this.retryFailuresBefore = retryFailuresBefore;
             return latestKnownEntities;
         }
 
@@ -515,16 +516,6 @@ class ProductRefreshServiceTest {
                     Instant.EPOCH
             );
         }
-    }
-
-    private static class TestSitemapService extends SitemapService {
-
-        private Set<String> discoveryRequests = Set.of();
-
-        TestSitemapService() {
-            super(null, new ScraperProperties());
-        }
-
     }
 
     private static class TestProductLookupFailureService extends ProductLookupFailureService {

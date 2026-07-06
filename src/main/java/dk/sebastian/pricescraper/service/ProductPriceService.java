@@ -155,8 +155,8 @@ public class ProductPriceService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductPriceEntity> findLatestKnownProductsOldestFirst() {
-        return productPriceRepository.findAllKnownProductsByRefreshPriority();
+    public List<ProductPriceEntity> findEligibleKnownProductsOldestFirst(Instant retryFailuresBefore) {
+        return productPriceRepository.findAllEligibleKnownProductsByRefreshPriority(retryFailuresBefore);
     }
 
     public boolean isFresh(ProductPriceEntity entity, java.time.Instant now, java.time.Duration refreshAfter) {

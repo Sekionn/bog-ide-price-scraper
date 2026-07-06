@@ -50,11 +50,20 @@ public interface ProductPriceRepository extends JpaRepository<ProductPriceEntity
     @Query("""
             select p
             from ProductPriceEntity p
+            where p.checked = false
+              and not exists (
+                  select f.productNumber
+                  from ProductLookupFailureEntity f
+                  where f.productNumber = p.productNumber
+                    and f.lastFailedAt > :retryFailuresBefore
+              )
             order by
                 case when p.scrapedAt is null then 0 else 1 end asc,
                 p.staleRequestCount desc,
                 p.lastRequestedAt desc,
                 p.scrapedAt asc
             """)
-    List<ProductPriceEntity> findAllKnownProductsByRefreshPriority();
+    List<ProductPriceEntity> findAllEligibleKnownProductsByRefreshPriority(
+            @Param("retryFailuresBefore") Instant retryFailuresBefore
+    );
 }
