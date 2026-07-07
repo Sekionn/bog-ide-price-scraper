@@ -2,6 +2,8 @@ package dk.sebastian.pricescraper.service;
 
 import dk.sebastian.pricescraper.config.ScraperProperties;
 import dk.sebastian.pricescraper.dto.ProductPriceDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -15,12 +17,15 @@ import java.util.Optional;
 @Service
 public class ProductPriceCacheService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProductPriceCacheService.class);
     private static final String PRODUCT_NUMBER_KEY_PART = "product-number";
     private static final String EAN_NUMBER_KEY_PART = "ean";
     private static final String CACHE_SCHEMA_VERSION = "v3";
 
     private final RedisTemplate<String, ProductPriceDto> redisTemplate;
     private final ScraperProperties properties;
+    private boolean redisReadFailureLogged;
+    private boolean redisWriteFailureLogged;
 
     public ProductPriceCacheService(
             RedisTemplate<String, ProductPriceDto> redisTemplate,
@@ -40,6 +45,7 @@ public class ProductPriceCacheService {
             return Optional.ofNullable(redisTemplate.opsForValue().get(eanNumberKey(identifier)))
                     .filter(ProductPriceCacheService::hasPrice);
         } catch (RedisConnectionFailureException e) {
+            logRedisReadFailure(identifier, e);
             return Optional.empty();
         }
     }
@@ -54,26 +60,51 @@ public class ProductPriceCacheService {
     }
 
     public void write(ProductPriceDto productPrice) {
-        if (!hasPrice(productPrice)) {
-            return;
-        }
-
-        Duration ttl = properties.getRefreshAfter();
-        try {
-            if (hasText(productPrice.getProductNumber())) {
-                redisTemplate.opsForValue().set(productNumberKey(productPrice.getProductNumber()), productPrice, ttl);
-            }
-            if (hasText(productPrice.getEanNumber())) {
-                redisTemplate.opsForValue().set(eanNumberKey(productPrice.getEanNumber()), productPrice, ttl);
-            }
-        } catch (RedisConnectionFailureException ignored) {
-            // MySQL remains the source of truth if Redis is temporarily unavailable.
-        }
+        writeOne(productPrice);
     }
 
     public void writeAll(List<ProductPriceDto> productPrices) {
+        int writtenKeys = 0;
+        int skippedWithoutPrice = 0;
         for (ProductPriceDto productPrice : productPrices) {
-            write(productPrice);
+            WriteResult result = writeOne(productPrice);
+            writtenKeys += result.writtenKeys();
+            if (result.skippedWithoutPrice()) {
+                skippedWithoutPrice++;
+            }
+        }
+
+        if (!productPrices.isEmpty()) {
+            log.info(
+                    "Redis cache write completed: {} key(s) written for {} product(s), {} product(s) skipped without a price.",
+                    writtenKeys,
+                    productPrices.size(),
+                    skippedWithoutPrice
+            );
+        }
+    }
+
+    private WriteResult writeOne(ProductPriceDto productPrice) {
+        if (!hasPrice(productPrice)) {
+            return WriteResult.skipped();
+        }
+
+        Duration ttl = properties.getRefreshAfter();
+        int writtenKeys = 0;
+        try {
+            if (hasText(productPrice.getProductNumber())) {
+                redisTemplate.opsForValue().set(productNumberKey(productPrice.getProductNumber()), productPrice, ttl);
+                writtenKeys++;
+            }
+            if (hasText(productPrice.getEanNumber())) {
+                redisTemplate.opsForValue().set(eanNumberKey(productPrice.getEanNumber()), productPrice, ttl);
+                writtenKeys++;
+            }
+            return WriteResult.written(writtenKeys);
+        } catch (RedisConnectionFailureException ignored) {
+            // MySQL remains the source of truth if Redis is temporarily unavailable.
+            logRedisWriteFailure(productPrice, ignored);
+            return WriteResult.writeFailed();
         }
     }
 
@@ -109,11 +140,45 @@ public class ProductPriceCacheService {
         return properties.getCachePrefix() + ":" + CACHE_SCHEMA_VERSION + ":" + keyPart + ":" + identifier;
     }
 
+    private void logRedisReadFailure(String identifier, RuntimeException exception) {
+        if (redisReadFailureLogged) {
+            return;
+        }
+
+        redisReadFailureLogged = true;
+        log.warn("Redis cache reads are unavailable. Falling back to MySQL for identifier {}.", identifier, exception);
+    }
+
+    private void logRedisWriteFailure(ProductPriceDto productPrice, RuntimeException exception) {
+        if (redisWriteFailureLogged) {
+            return;
+        }
+
+        redisWriteFailureLogged = true;
+        String productNumber = productPrice == null ? null : productPrice.getProductNumber();
+        log.warn("Redis cache writes are unavailable. MySQL remains the source of truth for product {}.", productNumber, exception);
+    }
+
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
     private static boolean hasPrice(ProductPriceDto product) {
         return product != null && product.getPrice() != null;
+    }
+
+    private record WriteResult(int writtenKeys, boolean skippedWithoutPrice) {
+
+        static WriteResult written(int writtenKeys) {
+            return new WriteResult(writtenKeys, false);
+        }
+
+        static WriteResult skipped() {
+            return new WriteResult(0, true);
+        }
+
+        static WriteResult writeFailed() {
+            return new WriteResult(0, false);
+        }
     }
 }

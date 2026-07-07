@@ -48,4 +48,24 @@
                     columnDataType="DECIMAL(12,2)"/>
         </rollback>
     </changeSet>
+
+    <changeSet id="2026-07-06-create-weekly-sitemap-cache-cleanup-event" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <dbms type="mysql"/>
+            <tableExists tableName="sitemap_cache"/>
+        </preConditions>
+        <sql splitStatements="false">
+            CREATE EVENT IF NOT EXISTS cleanup_expired_sitemap_cache
+                ON SCHEDULE EVERY 1 WEEK
+                STARTS CURRENT_TIMESTAMP + INTERVAL 1 WEEK
+                ON COMPLETION PRESERVE
+                ENABLE
+                DO
+                    DELETE FROM sitemap_cache
+                    WHERE fetched_at &lt;= UTC_TIMESTAMP() - INTERVAL 7 DAY
+        </sql>
+        <rollback>
+            <sql>DROP EVENT IF EXISTS cleanup_expired_sitemap_cache</sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>

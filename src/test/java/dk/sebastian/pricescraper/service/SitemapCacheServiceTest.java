@@ -61,4 +61,5 @@ class SitemapCacheServiceTest {
         assertThat(cachedSitemap.getXmlContent()).isEqualTo("<new />");
         verify(repository).save(cachedSitemap);
     }
+
 }
