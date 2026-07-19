@@ -60,7 +60,7 @@ class ProductDiscoveryServiceTest {
         private final Map<String, String> trackedProducts = new LinkedHashMap<>();
 
         FakeProductPriceService(Map<String, Boolean> insertedByProductNumber) {
-            super(null, null);
+            super(null, null, null);
             this.insertedByProductNumber = insertedByProductNumber;
         }
 

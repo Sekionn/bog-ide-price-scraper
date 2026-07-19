@@ -36,6 +36,7 @@ class ProductRefreshServiceTest {
     @Test
     void appliesConfiguredLookupFailureRetryWindowToRefreshSelection() {
         ScraperProperties properties = new ScraperProperties();
+        properties.setRefreshAfter(java.time.Duration.ofDays(7));
         properties.setLookupFailureRetryAfter(java.time.Duration.ofDays(10));
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
         ProductRefreshService productRefreshService = new ProductRefreshService(
@@ -45,12 +46,15 @@ class ProductRefreshServiceTest {
                 new TestProductLookupFailureService(),
                 properties
         );
-        Instant expectedCutoff = Instant.now().minus(java.time.Duration.ofDays(10));
+        Instant expectedRefreshCutoff = Instant.now().minus(java.time.Duration.ofDays(7));
+        Instant expectedFailureCutoff = Instant.now().minus(java.time.Duration.ofDays(10));
 
         productRefreshService.refreshKnownProductsUntil(Instant.now().plusSeconds(60));
 
+        assertThat(productPriceService.refreshBefore)
+                .isBetween(expectedRefreshCutoff.minusSeconds(1), expectedRefreshCutoff.plusSeconds(1));
         assertThat(productPriceService.retryFailuresBefore)
-                .isBetween(expectedCutoff.minusSeconds(1), expectedCutoff.plusSeconds(1));
+                .isBetween(expectedFailureCutoff.minusSeconds(1), expectedFailureCutoff.plusSeconds(1));
     }
 
     @Test
@@ -376,6 +380,7 @@ class ProductRefreshServiceTest {
         private final ScraperProperties properties;
         private List<ProductPriceEntity> latestEntities = List.of();
         private List<ProductPriceEntity> latestKnownEntities = List.of();
+        private Instant refreshBefore;
         private Instant retryFailuresBefore;
         private List<ProductPriceDto> latestDtos = List.of();
         private Set<String> recordedStaleRequests = Set.of();
@@ -386,7 +391,7 @@ class ProductRefreshServiceTest {
         private Map<String, String> trackedBookTypesByProductNumber = Map.of();
 
         TestProductPriceService(ScraperProperties properties) {
-            super(null, null);
+            super(null, null, null);
             this.properties = properties;
         }
 
@@ -415,7 +420,11 @@ class ProductRefreshServiceTest {
         }
 
         @Override
-        public List<ProductPriceEntity> findEligibleKnownProductsOldestFirst(Instant retryFailuresBefore) {
+        public List<ProductPriceEntity> findEligibleKnownProductsOldestFirst(
+                Instant refreshBefore,
+                Instant retryFailuresBefore
+        ) {
+            this.refreshBefore = refreshBefore;
             this.retryFailuresBefore = retryFailuresBefore;
             return latestKnownEntities;
         }

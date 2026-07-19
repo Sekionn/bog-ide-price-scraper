@@ -4,6 +4,7 @@ import dk.sebastian.pricescraper.entity.ProductPriceEntity;
 import dk.sebastian.pricescraper.dto.ProductPriceDto;
 import dk.sebastian.pricescraper.records.ProductPrice;
 import dk.sebastian.pricescraper.config.ScraperProperties;
+import dk.sebastian.pricescraper.repository.ProductLookupFailureRepository;
 import dk.sebastian.pricescraper.repository.ProductPriceRepository;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +31,7 @@ class ProductPriceServiceTest {
         };
         when(repository.findById("123")).thenReturn(Optional.empty());
         when(repository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
-        ProductPriceService service = new ProductPriceService(repository, cache);
+        ProductPriceService service = new ProductPriceService(repository, mock(ProductLookupFailureRepository.class), cache);
 
         ProductPriceDto result = service.save(new ProductPrice(
                 "https://www.bog-ide.dk/products/example-123",
@@ -78,7 +79,7 @@ class ProductPriceServiceTest {
             public void write(ProductPriceDto productPrice) {
             }
         };
-        ProductPriceService service = new ProductPriceService(repository, cache);
+        ProductPriceService service = new ProductPriceService(repository, mock(ProductLookupFailureRepository.class), cache);
 
         ProductPriceDto result = service.save(new ProductPrice(
                 "https://www.bog-ide.dk/products/example-123",
@@ -101,11 +102,39 @@ class ProductPriceServiceTest {
     }
 
     @Test
+    void clearsLookupFailureWhenProductIsSuccessfullySaved() {
+        ProductPriceRepository repository = mock(ProductPriceRepository.class);
+        ProductLookupFailureRepository lookupFailureRepository = mock(ProductLookupFailureRepository.class);
+        ProductPriceCacheService cache = new ProductPriceCacheService(null, new ScraperProperties()) {
+            @Override
+            public void write(ProductPriceDto productPrice) {
+            }
+        };
+        when(repository.findById("123")).thenReturn(Optional.empty());
+        when(repository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
+        ProductPriceService service = new ProductPriceService(repository, lookupFailureRepository, cache);
+
+        service.save(new ProductPrice(
+                "https://www.bog-ide.dk/products/example-123",
+                "123",
+                "9788711477960",
+                "Example",
+                "Author",
+                new BigDecimal("199.95"),
+                "DKK",
+                "InStock",
+                Instant.EPOCH
+        ));
+
+        verify(lookupFailureRepository).deleteById("123");
+    }
+
+    @Test
     void discoveryAddsUrlToExistingPlaceholder() {
         ProductPriceRepository repository = mock(ProductPriceRepository.class);
         ProductPriceEntity placeholder = new ProductPriceEntity("123456", null, null);
         when(repository.findById("123456")).thenReturn(Optional.of(placeholder));
-        ProductPriceService service = new ProductPriceService(repository, null);
+        ProductPriceService service = new ProductPriceService(repository, null, null);
 
         boolean inserted = service.trackProduct(
                 "123456",
@@ -128,7 +157,7 @@ class ProductPriceServiceTest {
                 null
         );
         when(repository.findById("123456")).thenReturn(Optional.of(product));
-        ProductPriceService service = new ProductPriceService(repository, null);
+        ProductPriceService service = new ProductPriceService(repository, null, null);
 
         service.trackProduct(
                 "123456",
@@ -149,7 +178,7 @@ class ProductPriceServiceTest {
                 null
         );
         when(repository.findById("123456")).thenReturn(Optional.of(product));
-        ProductPriceService service = new ProductPriceService(repository, null);
+        ProductPriceService service = new ProductPriceService(repository, null, null);
 
         service.trackProduct(
                 "123456",

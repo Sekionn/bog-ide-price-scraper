@@ -36,7 +36,7 @@ http://localhost:8080/v3/api-docs
 
 ## Docker
 
-Run the app and MySQL together:
+Run the app, MySQL, and Redis together:
 
 ```powershell
 docker compose up --build
@@ -46,7 +46,99 @@ This starts:
 
 ```text
 mysql:8.4 on localhost:3306
+redis:7.2-alpine on localhost:6379
 app on https://localhost:8443
+```
+
+### Standalone Docker containers
+
+If you are not using Docker Compose, create one shared Docker network and attach all three containers to it. Docker container names only resolve through Docker DNS when the containers share a user-defined network.
+
+Create the shared network:
+
+```bash
+docker network create bogide-net 2>/dev/null || true
+```
+
+Start Redis:
+
+```bash
+docker run -d \
+  --name bog-ide-price-redis \
+  --network bogide-net \
+  -p 6379:6379 \
+  -v redis-data:/data \
+  redis:7.2-alpine redis-server --appendonly yes
+```
+
+Start MySQL:
+
+```bash
+docker run -d \
+  --name bog-ide-price-mysql \
+  --network bogide-net \
+  -p 3306:3306 \
+  -v mysql-data:/var/lib/mysql \
+  -e MYSQL_DATABASE=bog_ide_prices \
+  -e MYSQL_USER=bogide \
+  -e MYSQL_PASSWORD=bogide \
+  -e MYSQL_ROOT_PASSWORD=bogide-root \
+  mysql:8.4 --event-scheduler=ON
+```
+
+Wait until MySQL is ready before starting the scraper:
+
+```bash
+until docker exec bog-ide-price-mysql mysqladmin ping -h 127.0.0.1 -ubogide -pbogide --silent; do
+  echo "Waiting for MySQL..."
+  sleep 2
+done
+```
+
+Redis and MySQL use public images, so Docker pulls them when the containers are created. The scraper image is built from this project. Generate or provide `certs/bog-ide-price-scraper.p12` before building because the Dockerfile copies it into the image.
+
+Build the scraper image from a local checkout:
+
+```bash
+docker build -t bog-ide-price-scraper:latest .
+```
+
+Or build directly from GitHub:
+
+```bash
+docker build -t bog-ide-price-scraper:latest https://github.com/YOUR_USER/YOUR_REPO.git#main
+```
+
+Run the scraper on the same shared network:
+
+```bash
+docker run -d \
+  --name bog-ide-price-scraper \
+  --network bogide-net \
+  --memory=1200m \
+  --memory-swap=1400m \
+  -p 8443:8443 \
+  -e SERVER_PORT=8443 \
+  -e SERVER_SSL_ENABLED=true \
+  -e SERVER_SSL_KEY_STORE=/app/certs/bog-ide-price-scraper.p12 \
+  -e SERVER_SSL_KEY_STORE_PASSWORD=change-this-password \
+  -e SERVER_SSL_KEY_STORE_TYPE=PKCS12 \
+  -e SERVER_SSL_KEY_ALIAS=bog-ide-price-scraper \
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://bog-ide-price-mysql:3306/bog_ide_prices \
+  -e SPRING_DATASOURCE_USERNAME=bogide \
+  -e SPRING_DATASOURCE_PASSWORD=bogide \
+  -e SPRING_DATA_REDIS_HOST=bog-ide-price-redis \
+  -e SPRING_DATA_REDIS_PORT=6379 \
+  -e JAVA_TOOL_OPTIONS="-Xms128m -Xmx700m -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=128m" \
+  bog-ide-price-scraper:latest
+```
+
+Check that all three containers are attached to the same network:
+
+```bash
+docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{println .Name ":" $k}}{{end}}' bog-ide-price-scraper
+docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{println .Name ":" $k}}{{end}}' bog-ide-price-redis
+docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{println .Name ":" $k}}{{end}}' bog-ide-price-mysql
 ```
 
 ## HTTPS

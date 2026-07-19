@@ -3,6 +3,7 @@ package dk.sebastian.pricescraper.service;
 import dk.sebastian.pricescraper.entity.ProductPriceEntity;
 import dk.sebastian.pricescraper.records.ProductPrice;
 import dk.sebastian.pricescraper.dto.ProductPriceDto;
+import dk.sebastian.pricescraper.repository.ProductLookupFailureRepository;
 import dk.sebastian.pricescraper.repository.ProductPriceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,13 +23,16 @@ public class ProductPriceService {
     private static final int MAX_BATCH_SIZE = 100;
 
     private final ProductPriceRepository productPriceRepository;
+    private final ProductLookupFailureRepository productLookupFailureRepository;
     private final ProductPriceCacheService productPriceCacheService;
 
     public ProductPriceService(
             ProductPriceRepository productPriceRepository,
+            ProductLookupFailureRepository productLookupFailureRepository,
             ProductPriceCacheService productPriceCacheService
     ) {
         this.productPriceRepository = productPriceRepository;
+        this.productLookupFailureRepository = productLookupFailureRepository;
         this.productPriceCacheService = productPriceCacheService;
     }
 
@@ -54,6 +58,7 @@ public class ProductPriceService {
         );
 
         ProductPriceDto savedProduct = toDto(productPriceRepository.save(entity));
+        clearLookupFailure(productPrice.productNumber());
         writeThroughAfterCommit(savedProduct);
         return savedProduct;
     }
@@ -155,8 +160,8 @@ public class ProductPriceService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductPriceEntity> findEligibleKnownProductsOldestFirst(Instant retryFailuresBefore) {
-        return productPriceRepository.findAllEligibleKnownProductsByRefreshPriority(retryFailuresBefore);
+    public List<ProductPriceEntity> findEligibleKnownProductsOldestFirst(Instant refreshBefore, Instant retryFailuresBefore) {
+        return productPriceRepository.findAllEligibleKnownProductsByRefreshPriority(refreshBefore, retryFailuresBefore);
     }
 
     public boolean isFresh(ProductPriceEntity entity, java.time.Instant now, java.time.Duration refreshAfter) {
@@ -192,6 +197,12 @@ public class ProductPriceService {
                 productPriceCacheService.write(savedProduct);
             }
         });
+    }
+
+    private void clearLookupFailure(String productNumber) {
+        if (productLookupFailureRepository != null && productNumber != null && !productNumber.isBlank()) {
+            productLookupFailureRepository.deleteById(productNumber);
+        }
     }
 
     public List<String> normalizeIdentifiers(List<String> identifiers) {

@@ -107,8 +107,9 @@ public class ProductRefreshService {
         Instant now = Instant.now();
 
         Instant retryFailuresBefore = now.minus(properties.getLookupFailureRetryAfter());
+        Instant refreshBefore = now.minus(properties.getRefreshAfter());
         for (ProductPriceEntity latestProduct
-                : productPriceService.findEligibleKnownProductsOldestFirst(retryFailuresBefore)) {
+                : productPriceService.findEligibleKnownProductsOldestFirst(refreshBefore, retryFailuresBefore)) {
             if (Instant.now().isAfter(deadline)) {
                 break;
             }

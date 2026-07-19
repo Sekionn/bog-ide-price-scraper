@@ -51,6 +51,7 @@ public interface ProductPriceRepository extends JpaRepository<ProductPriceEntity
             select p
             from ProductPriceEntity p
             where p.checked = false
+              and (p.scrapedAt is null or p.scrapedAt <= :refreshBefore)
               and not exists (
                   select f.productNumber
                   from ProductLookupFailureEntity f
@@ -58,12 +59,17 @@ public interface ProductPriceRepository extends JpaRepository<ProductPriceEntity
                     and f.lastFailedAt > :retryFailuresBefore
               )
             order by
-                case when p.scrapedAt is null then 0 else 1 end asc,
+                case
+                    when p.scrapedAt is not null and p.staleRequestCount > 0 then 0
+                    when p.scrapedAt is null then 1
+                    else 2
+                end asc,
                 p.staleRequestCount desc,
                 p.lastRequestedAt desc,
                 p.scrapedAt asc
             """)
     List<ProductPriceEntity> findAllEligibleKnownProductsByRefreshPriority(
+            @Param("refreshBefore") Instant refreshBefore,
             @Param("retryFailuresBefore") Instant retryFailuresBefore
     );
 }
