@@ -5,6 +5,7 @@ import dk.sebastian.pricescraper.dto.ProductPriceDto;
 import dk.sebastian.pricescraper.dto.ProductPriceLookupRequestDto;
 import dk.sebastian.pricescraper.entity.ProductPriceEntity;
 import dk.sebastian.pricescraper.records.ProductPrice;
+import dk.sebastian.pricescraper.scraper.HttpFetchException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -323,6 +324,47 @@ class ProductRefreshServiceTest {
     }
 
     @Test
+    void clearsStoredPricesAndRecordsLookupFailureWhenStoredUrlReturns404() {
+        ScraperProperties properties = new ScraperProperties();
+        TestProductPriceService productPriceService = new TestProductPriceService(properties);
+        TestProductPageScraperService productPageScraper = new TestProductPageScraperService();
+        TestProductLookupFailureService productLookupFailureService = new TestProductLookupFailureService();
+        String storedUrl = "https://www.bog-ide.dk/products/discontinued-product-123456";
+        productPageScraper.failingUrls = Set.of(storedUrl);
+        productPriceService.latestKnownEntities = List.of(new ProductPriceEntity(
+                "123456",
+                storedUrl,
+                "9788711477960",
+                "Discontinued Product",
+                "Author",
+                BigDecimal.TEN,
+                new BigDecimal("5.00"),
+                "DKK",
+                "InStock",
+                Instant.EPOCH,
+                0,
+                null,
+                false
+        ));
+        ProductRefreshService productRefreshService = new ProductRefreshService(
+                productPriceService,
+                new TestProductPriceCacheService(properties),
+                productPageScraper,
+                productLookupFailureService,
+                properties
+        );
+
+        productRefreshService.refreshKnownProductsUntil(Instant.now().plusSeconds(60));
+
+        assertThat(productPageScraper.scrapedUrls).containsExactly(storedUrl);
+        assertThat(productPriceService.clearedProductNumbers).containsExactly("123456");
+        assertThat(productLookupFailureService.recordedProductNumbers).containsExactly("123456");
+        assertThat(productLookupFailureService.recordedAttemptedUrls).containsExactly(storedUrl);
+        assertThat(productLookupFailureService.recordedReasons)
+                .containsExactly("Unexpected HTTP 404 while fetching " + storedUrl);
+    }
+
+    @Test
     void recordsLookupFailureWhenBookAuthorIsMissingFromStoredData() {
         ScraperProperties properties = new ScraperProperties();
         TestProductPriceService productPriceService = new TestProductPriceService(properties);
@@ -389,6 +431,7 @@ class ProductRefreshServiceTest {
         private Map<String, String> trackedAuthorsByProductNumber = Map.of();
         private Map<String, String> trackedProductTypesByProductNumber = Map.of();
         private Map<String, String> trackedBookTypesByProductNumber = Map.of();
+        private List<String> clearedProductNumbers = List.of();
 
         TestProductPriceService(ScraperProperties properties) {
             super(null, null, null);
@@ -433,6 +476,11 @@ class ProductRefreshServiceTest {
         public ProductPriceDto save(ProductPrice productPrice) {
             savedProducts = List.of(productPrice);
             return null;
+        }
+
+        @Override
+        public void clearPrices(String productNumber) {
+            clearedProductNumbers = List.of(productNumber);
         }
 
         @Override
@@ -510,7 +558,7 @@ class ProductRefreshServiceTest {
             urls.add(productUrl);
             scrapedUrls = List.copyOf(urls);
             if (failingUrls.contains(productUrl)) {
-                throw new IllegalStateException("Unexpected HTTP 404 while fetching fallback URL");
+                throw new HttpFetchException("Unexpected HTTP 404 while fetching " + productUrl, productUrl, 404);
             }
 
             return new ProductPrice(

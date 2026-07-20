@@ -63,6 +63,23 @@ public class ProductPriceCacheService {
         writeOne(productPrice);
     }
 
+    public void evict(ProductPriceDto productPrice) {
+        if (productPrice == null) {
+            return;
+        }
+
+        try {
+            if (hasText(productPrice.getProductNumber())) {
+                redisTemplate.delete(productNumberKey(productPrice.getProductNumber()));
+            }
+            if (hasText(productPrice.getEanNumber())) {
+                redisTemplate.delete(eanNumberKey(productPrice.getEanNumber()));
+            }
+        } catch (RedisConnectionFailureException ignored) {
+            logRedisWriteFailure(productPrice, ignored);
+        }
+    }
+
     public void writeAll(List<ProductPriceDto> productPrices) {
         int writtenKeys = 0;
         int skippedWithoutPrice = 0;

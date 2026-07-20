@@ -258,6 +258,11 @@ public class ProductPriceEntity {
         this.checked = checked;
     }
 
+    public void clearPrices() {
+        this.normalPrice = null;
+        this.specialOfferPrice = null;
+    }
+
     public boolean hasScrapedPrice() {
         return url != null
                 && title != null

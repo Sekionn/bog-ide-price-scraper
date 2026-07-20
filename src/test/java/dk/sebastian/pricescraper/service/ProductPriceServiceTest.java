@@ -130,6 +130,41 @@ class ProductPriceServiceTest {
     }
 
     @Test
+    void clearsStoredNormalAndSpecialOfferPrices() {
+        ProductPriceRepository repository = mock(ProductPriceRepository.class);
+        ProductPriceEntity previouslyPriced = new ProductPriceEntity(
+                "123",
+                "https://www.bog-ide.dk/products/example-123",
+                "9788711477960",
+                "Example",
+                "Author",
+                new BigDecimal("199.95"),
+                new BigDecimal("129.95"),
+                "DKK",
+                "InStock",
+                Instant.EPOCH,
+                0,
+                Instant.EPOCH,
+                false
+        );
+        when(repository.findById("123")).thenReturn(Optional.of(previouslyPriced));
+        ProductPriceCacheService cache = new ProductPriceCacheService(null, new ScraperProperties()) {
+            private ProductPriceDto evictedProduct;
+
+            @Override
+            public void evict(ProductPriceDto productPrice) {
+                evictedProduct = productPrice;
+            }
+        };
+        ProductPriceService service = new ProductPriceService(repository, mock(ProductLookupFailureRepository.class), cache);
+
+        service.clearPrices("123");
+
+        assertThat(previouslyPriced.getNormalPrice()).isNull();
+        assertThat(previouslyPriced.getSpecialOfferPrice()).isNull();
+    }
+
+    @Test
     void discoveryAddsUrlToExistingPlaceholder() {
         ProductPriceRepository repository = mock(ProductPriceRepository.class);
         ProductPriceEntity placeholder = new ProductPriceEntity("123456", null, null);

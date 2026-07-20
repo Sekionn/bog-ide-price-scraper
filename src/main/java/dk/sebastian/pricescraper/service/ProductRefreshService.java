@@ -6,6 +6,7 @@ import dk.sebastian.pricescraper.records.ProductPrice;
 import dk.sebastian.pricescraper.dto.ProductPriceDto;
 import dk.sebastian.pricescraper.dto.ProductPriceLookupRequestDto;
 import dk.sebastian.pricescraper.records.RefreshResult;
+import dk.sebastian.pricescraper.scraper.HttpFetchException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -143,7 +144,14 @@ public class ProductRefreshService {
 
     private void refresh(ProductPriceEntity product) {
         if (product.getUrl() != null && !product.getUrl().isBlank()) {
-            refresh(product.getUrl());
+            try {
+                refresh(product.getUrl());
+            } catch (HttpFetchException e) {
+                if (e.getStatusCode() == 404) {
+                    recordUnavailableProduct(product.getProductNumber(), product.getUrl(), e);
+                }
+                throw e;
+            }
             return;
         }
 
@@ -197,9 +205,16 @@ public class ProductRefreshService {
 
         if (lastFailure == null) {
             recordLookupFailure(productNumber, lastAttemptedUrl, "Fallback URL list was empty");
+        } else if (lastFailure instanceof HttpFetchException httpFailure && httpFailure.getStatusCode() == 404) {
+            recordUnavailableProduct(productNumber, lastAttemptedUrl, httpFailure);
         } else {
             recordLookupFailure(productNumber, lastAttemptedUrl, lastFailure);
         }
+    }
+
+    private void recordUnavailableProduct(String productNumber, String attemptedUrl, Exception exception) {
+        productPriceService.clearPrices(productNumber);
+        recordLookupFailure(productNumber, attemptedUrl, exception);
     }
 
     private void recordLookupFailure(String productNumber, String attemptedUrl, Exception exception) {

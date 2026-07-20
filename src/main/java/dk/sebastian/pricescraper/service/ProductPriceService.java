@@ -64,6 +64,19 @@ public class ProductPriceService {
     }
 
     @Transactional
+    public void clearPrices(String productNumber) {
+        if (productNumber == null || productNumber.isBlank()) {
+            return;
+        }
+
+        productPriceRepository.findById(productNumber).ifPresent(product -> {
+            product.clearPrices();
+            ProductPriceDto clearedProduct = toDto(product);
+            evictAfterCommit(clearedProduct);
+        });
+    }
+
+    @Transactional
     public void trackProduct(String productNumber, String eanNumber) {
         trackProduct(productNumber, null, eanNumber);
     }
@@ -195,6 +208,20 @@ public class ProductPriceService {
             @Override
             public void afterCommit() {
                 productPriceCacheService.write(savedProduct);
+            }
+        });
+    }
+
+    private void evictAfterCommit(ProductPriceDto product) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            productPriceCacheService.evict(product);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                productPriceCacheService.evict(product);
             }
         });
     }
