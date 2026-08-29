@@ -45,6 +45,7 @@ public class ProductPageScraperService {
         Document document = Jsoup.parse(html, productUrl);
 
         PriceDetails priceDetails = findPriceInJsonLd(document)
+                .or(() -> findPriceInPriceList(document))
                 .or(() -> findPriceInMetaTags(document))
                 .or(() -> findPriceWithRegex(html))
                 .orElseThrow(() -> new IllegalStateException("Could not find price on " + productUrl));
@@ -316,10 +317,28 @@ public class ProductPageScraperService {
                 attr(document, "meta[property=product:regular_price:amount]", "content"),
                 attr(document, "[data-normal-price]", "data-normal-price"),
                 attr(document, "[data-original-price]", "data-original-price"),
-                text(document, ".price--old, .old-price, .original-price, .before-price")
+                text(document, "compare-at-price, .price--old, .old-price, .original-price, .before-price")
         )).orElse(displayedPrice.get());
         BigDecimal specialOfferPrice = normalPrice.compareTo(displayedPrice.get()) > 0 ? displayedPrice.get() : null;
         return Optional.of(new PriceDetails(normalPrice, specialOfferPrice, currency, availability));
+    }
+
+    private Optional<PriceDetails> findPriceInPriceList(Document document) {
+        for (Element priceList : document.select("price-list")) {
+            Optional<BigDecimal> salePrice = parsePrice(text(priceList, "sale-price"));
+            if (salePrice.isEmpty()) {
+                continue;
+            }
+
+            Optional<BigDecimal> compareAtPrice = parsePrice(text(priceList, "compare-at-price"));
+            BigDecimal normalPrice = compareAtPrice
+                    .filter(price -> price.compareTo(salePrice.get()) > 0)
+                    .orElse(salePrice.get());
+            BigDecimal specialOfferPrice = normalPrice.compareTo(salePrice.get()) > 0 ? salePrice.get() : null;
+            return Optional.of(new PriceDetails(normalPrice, specialOfferPrice, "DKK", ""));
+        }
+
+        return Optional.empty();
     }
 
     private PriceDetails addExplicitNormalPriceFromPage(Document document, PriceDetails details) {
@@ -328,7 +347,7 @@ public class ProductPageScraperService {
                 attr(document, "meta[property=product:regular_price:amount]", "content"),
                 attr(document, "[data-normal-price]", "data-normal-price"),
                 attr(document, "[data-original-price]", "data-original-price"),
-                text(document, ".price--old, .old-price, .original-price, .before-price")
+                text(document, "compare-at-price, .price--old, .old-price, .original-price, .before-price")
         ));
         if (pageNormalPrice.isEmpty() || pageNormalPrice.get().compareTo(details.price()) <= 0) {
             return details;
@@ -422,6 +441,11 @@ public class ProductPageScraperService {
     private static String text(Document document, String selector) {
         Element element = document.selectFirst(selector);
         return element == null ? null : element.text();
+    }
+
+    private static String text(Element element, String selector) {
+        Element selectedElement = element.selectFirst(selector);
+        return selectedElement == null ? null : selectedElement.text();
     }
 
     private static String firstNonBlank(String... values) {

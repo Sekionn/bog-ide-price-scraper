@@ -149,6 +149,77 @@ class ProductPageScraperTest {
     }
 
     @Test
+    void separatesSpecialOfferFromBogIdePriceList() {
+        String html = """
+                <html>
+                  <head>
+                    <script type="application/ld+json">
+                      {
+                        "@type": "Product",
+                        "sku": "12345",
+                        "gtin13": "9788711477960"
+                      }
+                    </script>
+                  </head>
+                  <body>
+                    <price-list class="price-list price-list--lg ">
+                      <sale-price class="text-lg text-on-sale">
+                        <span class="sr-only">Salgspris</span>99,95 kr
+                      </sale-price>
+                      <compare-at-price class="text-subdued line-through">
+                        <span class="sr-only">Normalpris</span>199,95 kr
+                      </compare-at-price>
+                    </price-list>
+                  </body>
+                </html>
+                """;
+        ProductPageScraperService scraper = new ProductPageScraperService(
+                new StaticHttpFetcher(new ScraperProperties(), html),
+                new ObjectMapper()
+        );
+
+        ProductPrice productPrice = scraper.scrape("https://www.bog-ide.dk/products/example");
+
+        assertThat(productPrice.normalPrice()).hasToString("199.95");
+        assertThat(productPrice.specialOfferPrice()).hasToString("99.95");
+        assertThat(productPrice.price()).hasToString("99.95");
+    }
+
+    @Test
+    void treatsBogIdePriceListWithoutCompareAtPriceAsNormalPrice() {
+        String html = """
+                <html>
+                  <head>
+                    <script type="application/ld+json">
+                      {
+                        "@type": "Product",
+                        "sku": "12345",
+                        "gtin13": "9788711477960"
+                      }
+                    </script>
+                  </head>
+                  <body>
+                    <price-list class="price-list price-list--lg ">
+                      <sale-price class="text-lg">
+                        <span class="sr-only">Salgspris</span>269,95 kr
+                      </sale-price>
+                    </price-list>
+                  </body>
+                </html>
+                """;
+        ProductPageScraperService scraper = new ProductPageScraperService(
+                new StaticHttpFetcher(new ScraperProperties(), html),
+                new ObjectMapper()
+        );
+
+        ProductPrice productPrice = scraper.scrape("https://www.bog-ide.dk/products/example");
+
+        assertThat(productPrice.normalPrice()).hasToString("269.95");
+        assertThat(productPrice.specialOfferPrice()).isNull();
+        assertThat(productPrice.price()).hasToString("269.95");
+    }
+
+    @Test
     void doesNotTreatAggregateHighPriceAsARegularPrice() {
         String html = """
                 <html>
