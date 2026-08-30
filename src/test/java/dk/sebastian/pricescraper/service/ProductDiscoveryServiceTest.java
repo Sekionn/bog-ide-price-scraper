@@ -60,7 +60,7 @@ class ProductDiscoveryServiceTest {
         private final Map<String, String> trackedProducts = new LinkedHashMap<>();
 
         FakeProductPriceService(Map<String, Boolean> insertedByProductNumber) {
-            super(null, null, null);
+            super(null, null, null, new dk.sebastian.pricescraper.config.ScraperProperties());
             this.insertedByProductNumber = insertedByProductNumber;
         }
 

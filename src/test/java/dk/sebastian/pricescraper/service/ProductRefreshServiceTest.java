@@ -434,7 +434,7 @@ class ProductRefreshServiceTest {
         private List<String> clearedProductNumbers = List.of();
 
         TestProductPriceService(ScraperProperties properties) {
-            super(null, null, null);
+            super(null, null, null, properties);
             this.properties = properties;
         }
 

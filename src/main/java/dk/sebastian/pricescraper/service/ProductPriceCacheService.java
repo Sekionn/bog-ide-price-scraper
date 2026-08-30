@@ -20,7 +20,7 @@ public class ProductPriceCacheService {
     private static final Logger log = LoggerFactory.getLogger(ProductPriceCacheService.class);
     private static final String PRODUCT_NUMBER_KEY_PART = "product-number";
     private static final String EAN_NUMBER_KEY_PART = "ean";
-    private static final String CACHE_SCHEMA_VERSION = "v3";
+    private static final String CACHE_SCHEMA_VERSION = "v4";
 
     private final RedisTemplate<String, ProductPriceDto> redisTemplate;
     private final ScraperProperties properties;

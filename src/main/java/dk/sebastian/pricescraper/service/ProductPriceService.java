@@ -3,6 +3,7 @@ package dk.sebastian.pricescraper.service;
 import dk.sebastian.pricescraper.entity.ProductPriceEntity;
 import dk.sebastian.pricescraper.records.ProductPrice;
 import dk.sebastian.pricescraper.dto.ProductPriceDto;
+import dk.sebastian.pricescraper.config.ScraperProperties;
 import dk.sebastian.pricescraper.repository.ProductLookupFailureRepository;
 import dk.sebastian.pricescraper.repository.ProductPriceRepository;
 import org.springframework.stereotype.Service;
@@ -25,21 +26,25 @@ public class ProductPriceService {
     private final ProductPriceRepository productPriceRepository;
     private final ProductLookupFailureRepository productLookupFailureRepository;
     private final ProductPriceCacheService productPriceCacheService;
+    private final ScraperProperties properties;
 
     public ProductPriceService(
             ProductPriceRepository productPriceRepository,
             ProductLookupFailureRepository productLookupFailureRepository,
-            ProductPriceCacheService productPriceCacheService
+            ProductPriceCacheService productPriceCacheService,
+            ScraperProperties properties
     ) {
         this.productPriceRepository = productPriceRepository;
         this.productLookupFailureRepository = productLookupFailureRepository;
         this.productPriceCacheService = productPriceCacheService;
+        this.properties = properties;
     }
 
     @Transactional
     public ProductPriceDto save(ProductPrice productPrice) {
         Optional<ProductPriceEntity> existingProduct = productPriceRepository.findById(productPrice.productNumber());
         Instant lastRequestedAt = existingProduct.map(ProductPriceEntity::getLastRequestedAt).orElse(null);
+        int staleRequestCount = existingProduct.map(ProductPriceEntity::getStaleRequestCount).orElse(0);
         boolean checked = existingProduct.map(ProductPriceEntity::isChecked).orElse(false);
         ProductPriceEntity entity = new ProductPriceEntity(
                 productPrice.productNumber(),
@@ -52,7 +57,7 @@ public class ProductPriceService {
                 productPrice.currency(),
                 productPrice.availability(),
                 productPrice.scrapedAt(),
-                0,
+                staleRequestCount,
                 lastRequestedAt,
                 checked
         );
@@ -194,8 +199,13 @@ public class ProductPriceService {
                 entity.getTitle(),
                 entity.getAuthor(),
                 entity.getPrice(),
-                entity.isSpecialOffer()
+                entity.isSpecialOffer(),
+                isStalePrice(entity)
         );
+    }
+
+    private boolean isStalePrice(ProductPriceEntity entity) {
+        return !isFresh(entity, Instant.now(), properties.getRefreshAfter());
     }
 
     private void writeThroughAfterCommit(ProductPriceDto savedProduct) {

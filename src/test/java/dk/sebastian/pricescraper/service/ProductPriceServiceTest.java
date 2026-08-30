@@ -31,7 +31,12 @@ class ProductPriceServiceTest {
         };
         when(repository.findById("123")).thenReturn(Optional.empty());
         when(repository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
-        ProductPriceService service = new ProductPriceService(repository, mock(ProductLookupFailureRepository.class), cache);
+        ProductPriceService service = new ProductPriceService(
+                repository,
+                mock(ProductLookupFailureRepository.class),
+                cache,
+                new ScraperProperties()
+        );
 
         ProductPriceDto result = service.save(new ProductPrice(
                 "https://www.bog-ide.dk/products/example-123",
@@ -52,6 +57,7 @@ class ProductPriceServiceTest {
         assertThat(entityCaptor.getValue().getSpecialOfferPrice()).hasToString("129.95");
         assertThat(result.getPrice()).hasToString("129.95");
         assertThat(result.isSpecialOffer()).isTrue();
+        assertThat(result.isStalePrice()).isTrue();
     }
 
     @Test
@@ -79,7 +85,12 @@ class ProductPriceServiceTest {
             public void write(ProductPriceDto productPrice) {
             }
         };
-        ProductPriceService service = new ProductPriceService(repository, mock(ProductLookupFailureRepository.class), cache);
+        ProductPriceService service = new ProductPriceService(
+                repository,
+                mock(ProductLookupFailureRepository.class),
+                cache,
+                new ScraperProperties()
+        );
 
         ProductPriceDto result = service.save(new ProductPrice(
                 "https://www.bog-ide.dk/products/example-123",
@@ -99,6 +110,56 @@ class ProductPriceServiceTest {
         assertThat(entityCaptor.getValue().getSpecialOfferPrice()).isNull();
         assertThat(result.getPrice()).hasToString("199.95");
         assertThat(result.isSpecialOffer()).isFalse();
+        assertThat(result.isStalePrice()).isFalse();
+    }
+
+    @Test
+    void preservesStaleRequestCountWhenProductIsSuccessfullySaved() {
+        ProductPriceRepository repository = mock(ProductPriceRepository.class);
+        Instant lastRequestedAt = Instant.parse("2026-08-30T09:00:00Z");
+        ProductPriceEntity previouslyRequestedWhileStale = new ProductPriceEntity(
+                "123",
+                "https://www.bog-ide.dk/products/example-123",
+                "9788711477960",
+                "Example",
+                "Author",
+                new BigDecimal("199.95"),
+                "DKK",
+                "InStock",
+                Instant.EPOCH,
+                7,
+                lastRequestedAt
+        );
+        ProductPriceCacheService cache = new ProductPriceCacheService(null, new ScraperProperties()) {
+            @Override
+            public void write(ProductPriceDto productPrice) {
+            }
+        };
+        when(repository.findById("123")).thenReturn(Optional.of(previouslyRequestedWhileStale));
+        when(repository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
+        ProductPriceService service = new ProductPriceService(
+                repository,
+                mock(ProductLookupFailureRepository.class),
+                cache,
+                new ScraperProperties()
+        );
+
+        service.save(new ProductPrice(
+                "https://www.bog-ide.dk/products/example-123",
+                "123",
+                "9788711477960",
+                "Example",
+                "Author",
+                new BigDecimal("199.95"),
+                "DKK",
+                "InStock",
+                Instant.now()
+        ));
+
+        ArgumentCaptor<ProductPriceEntity> entityCaptor = ArgumentCaptor.forClass(ProductPriceEntity.class);
+        verify(repository).save(entityCaptor.capture());
+        assertThat(entityCaptor.getValue().getStaleRequestCount()).isEqualTo(7);
+        assertThat(entityCaptor.getValue().getLastRequestedAt()).isEqualTo(lastRequestedAt);
     }
 
     @Test
@@ -112,7 +173,7 @@ class ProductPriceServiceTest {
         };
         when(repository.findById("123")).thenReturn(Optional.empty());
         when(repository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
-        ProductPriceService service = new ProductPriceService(repository, lookupFailureRepository, cache);
+        ProductPriceService service = new ProductPriceService(repository, lookupFailureRepository, cache, new ScraperProperties());
 
         service.save(new ProductPrice(
                 "https://www.bog-ide.dk/products/example-123",
@@ -156,7 +217,12 @@ class ProductPriceServiceTest {
                 evictedProduct = productPrice;
             }
         };
-        ProductPriceService service = new ProductPriceService(repository, mock(ProductLookupFailureRepository.class), cache);
+        ProductPriceService service = new ProductPriceService(
+                repository,
+                mock(ProductLookupFailureRepository.class),
+                cache,
+                new ScraperProperties()
+        );
 
         service.clearPrices("123");
 
@@ -169,7 +235,7 @@ class ProductPriceServiceTest {
         ProductPriceRepository repository = mock(ProductPriceRepository.class);
         ProductPriceEntity placeholder = new ProductPriceEntity("123456", null, null);
         when(repository.findById("123456")).thenReturn(Optional.of(placeholder));
-        ProductPriceService service = new ProductPriceService(repository, null, null);
+        ProductPriceService service = new ProductPriceService(repository, null, null, new ScraperProperties());
 
         boolean inserted = service.trackProduct(
                 "123456",
@@ -192,7 +258,7 @@ class ProductPriceServiceTest {
                 null
         );
         when(repository.findById("123456")).thenReturn(Optional.of(product));
-        ProductPriceService service = new ProductPriceService(repository, null, null);
+        ProductPriceService service = new ProductPriceService(repository, null, null, new ScraperProperties());
 
         service.trackProduct(
                 "123456",
@@ -213,7 +279,7 @@ class ProductPriceServiceTest {
                 null
         );
         when(repository.findById("123456")).thenReturn(Optional.of(product));
-        ProductPriceService service = new ProductPriceService(repository, null, null);
+        ProductPriceService service = new ProductPriceService(repository, null, null, new ScraperProperties());
 
         service.trackProduct(
                 "123456",
